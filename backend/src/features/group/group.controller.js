@@ -5,9 +5,6 @@ const createGroup = async (req, res) => {
   try {
     const { name, description } = req.body;
 
-    if (!name || typeof name !== 'string') {
-      return errorResponse(res, 400, 'Group name is required.');
-    }
 
     const newGroup = await groupService.createGroup({
       name: name.trim(),
@@ -79,9 +76,6 @@ const addUser = async (req, res) => {
     const { id } = req.params; // Group ID
     const { userId } = req.body;
 
-    if (!userId) {
-      return errorResponse(res, 400, 'User ID is required.');
-    }
 
     const membership = await groupService.addUserToGroup({
       groupId: id,
@@ -116,9 +110,6 @@ const attachPolicy = async (req, res) => {
     const { id } = req.params;
     const { policyId } = req.body;
 
-    if (!policyId) {
-      return errorResponse(res, 400, 'Policy ID is required.');
-    }
 
     const attachment = await groupService.attachPolicyToGroup(req.user, {
       groupId: id,

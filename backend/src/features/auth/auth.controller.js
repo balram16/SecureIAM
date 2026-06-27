@@ -5,17 +5,6 @@ const register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    // Direct input validation
-    if (!name || typeof name !== 'string' || name.trim() === '') {
-      return errorResponse(res, 400, 'Name is required and must be a non-empty string.');
-    }
-    if (!email || typeof email !== 'string' || !email.includes('@')) {
-      return errorResponse(res, 400, 'A valid email is required.');
-    }
-    if (!password || typeof password !== 'string' || password.length < 6) {
-      return errorResponse(res, 400, 'Password is required and must be at least 6 characters long.');
-    }
-
     const newUser = await authService.registerUser({
       name: name.trim(),
       email: email.trim().toLowerCase(),
@@ -33,13 +22,6 @@ const register = async (req, res) => {
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
-
-    if (!email || typeof email !== 'string') {
-      return errorResponse(res, 400, 'Email is required.');
-    }
-    if (!password || typeof password !== 'string') {
-      return errorResponse(res, 400, 'Password is required.');
-    }
 
     const { token, user } = await authService.loginUser({
       email: email.trim().toLowerCase(),

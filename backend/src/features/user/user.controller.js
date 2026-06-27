@@ -28,9 +28,6 @@ const attachPolicy = async (req, res) => {
     const { id } = req.params; // User ID
     const { policyId } = req.body;
 
-    if (!policyId) {
-      return errorResponse(res, 400, 'Policy ID is required.');
-    }
 
     const attachment = await userService.attachPolicyToUser(req.user, {
       userId: id,
@@ -65,9 +62,6 @@ const putBoundary = async (req, res) => {
     const { id } = req.params;
     const { policyId } = req.body;
 
-    if (!policyId) {
-      return errorResponse(res, 400, 'Policy ID is required.');
-    }
 
     const boundary = await userService.putUserBoundary(req.user, {
       userId: id,

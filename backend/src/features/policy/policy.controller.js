@@ -5,15 +5,6 @@ const createPolicy = async (req, res) => {
   try {
     const { name, type, description, statements, userId, groupId } = req.body;
 
-    if (!name || typeof name !== 'string') {
-      return errorResponse(res, 400, 'Policy name is required.');
-    }
-    if (!type || typeof type !== 'string') {
-      return errorResponse(res, 400, 'Policy type is required.');
-    }
-    if (!statements || !Array.isArray(statements)) {
-      return errorResponse(res, 400, 'Policy statements must be provided in an array.');
-    }
 
     const newPolicy = await policyService.createPolicy(req.user, {
       name: name.trim(),

@@ -6,18 +6,21 @@ const iamMiddleware = require('../../middleware/iam.middleware');
 
 router.use(authMiddleware);
 
-router.post('/', iamMiddleware('iam:CreateGroup'), groupController.createGroup);
+const validate = require('../../middleware/validate.middleware');
+const { createGroupSchema, addUserSchema, attachPolicySchema } = require('./group.schema');
+
+router.post('/', iamMiddleware('iam:CreateGroup'), validate(createGroupSchema), groupController.createGroup);
 router.get('/', iamMiddleware('iam:ListGroups'), groupController.listGroups);
 router.get('/:id', iamMiddleware('iam:GetGroup'), groupController.getGroup);
-router.put('/:id', iamMiddleware('iam:UpdateGroup'), groupController.updateGroup);
+router.put('/:id', iamMiddleware('iam:UpdateGroup'), validate(createGroupSchema), groupController.updateGroup);
 router.delete('/:id', iamMiddleware('iam:DeleteGroup'), groupController.deleteGroup);
 
 // Memberships
-router.post('/:id/members', iamMiddleware('iam:AddUserToGroup'), groupController.addUser);
+router.post('/:id/members', iamMiddleware('iam:AddUserToGroup'), validate(addUserSchema), groupController.addUser);
 router.delete('/:id/members/:userId', iamMiddleware('iam:RemoveUserFromGroup'), groupController.removeUser);
 
 // Policies
-router.post('/:id/policies', iamMiddleware('iam:AttachGroupPolicy'), groupController.attachPolicy);
+router.post('/:id/policies', iamMiddleware('iam:AttachGroupPolicy'), validate(attachPolicySchema), groupController.attachPolicy);
 router.delete('/:id/policies/:policyId', iamMiddleware('iam:DetachGroupPolicy'), groupController.detachPolicy);
 
 module.exports = router;
