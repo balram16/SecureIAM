@@ -23,6 +23,7 @@ model User {
   memberships  UserGroupMembership[]
   policies     UserPolicyAttachment[]
   boundary     UserBoundary?
+  refreshToken String?
 
   @@map("users")
 }
