@@ -1,9 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { motion, AnimatePresence } from 'framer-motion';
 import Sidebar from '../components/Sidebar';
 import api from '../services/api';
 import { Plus, Trash2, Edit3, Eye, FileText, ChevronLeft, AlertCircle, Search, X } from 'lucide-react';
 import { Policy, User, Group, Statement } from '../types/iam';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Separator } from '@/components/ui/separator';
+import { PageWrapper, fadeInUp, scaleIn } from '@/components/ui/motion';
 
 const VALID_ACTIONS = [
   // Resource Actions
@@ -240,581 +249,557 @@ const Policies = () => {
   );
 
   return (
-    <div className="flex h-screen bg-slate-950 overflow-hidden text-slate-100">
+    <div className="flex h-screen bg-background overflow-hidden text-foreground">
       <Sidebar />
 
-      <div className="flex-1 overflow-y-auto bg-slate-950 p-8 relative flex flex-col">
-        {/* Orbs */}
-        <div className="absolute top-10 right-10 w-96 h-96 bg-purple-600/5 rounded-full blur-3xl -z-10"></div>
+      <div className="flex-1 overflow-y-auto p-8 relative flex flex-col">
+        {/* Background glow */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-purple-600/5 rounded-full blur-[120px] -z-10" />
 
-        {/* Top alerts */}
-        {error && (
-          <div className="mb-6 p-4 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-2xl flex items-start space-x-3 text-sm shrink-0">
-            <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <span className="font-semibold">Operation Error:</span> {error}
-            </div>
-            <button onClick={() => setError('')} className="text-slate-400 hover:text-slate-200">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        )}
-
-        {/* LIST VIEW */}
-        {view === 'list' && (
-          <>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 shrink-0">
-              <div>
-                <h1 className="text-3xl font-extrabold text-white tracking-tight">Access Policies</h1>
-                <p className="text-slate-400 text-sm mt-1">
-                  Manage standalone reusable (MANAGED) or inline (INLINE) policies defining route privileges.
-                </p>
-              </div>
-              <button
-                onClick={handleCreateOpen}
-                className="flex items-center justify-center space-x-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl transition-all cursor-pointer shadow-lg shadow-indigo-600/15"
+        <PageWrapper className="flex-1 flex flex-col min-h-0">
+          {/* Error alert */}
+          <AnimatePresence>
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+                animate={{ opacity: 1, height: 'auto', marginBottom: 24 }}
+                exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+                className="p-3.5 bg-destructive/10 border border-destructive/20 text-destructive rounded-xl flex items-start gap-3 text-sm shrink-0 overflow-hidden"
               >
-                <Plus className="h-4 w-4" />
-                <span>Create Policy</span>
-              </button>
-            </div>
-
-            {/* Search Bar */}
-            <div className="relative mb-6 shrink-0 max-w-md">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                <Search className="h-4 w-4" />
-              </div>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search policies by name or description..."
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2.5 pl-11 pr-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all text-sm"
-              />
-            </div>
-
-            {/* Table Container */}
-            <div className="flex-1 min-h-0 bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-3xl overflow-hidden shadow-xl flex flex-col">
-              <div className="flex-1 overflow-y-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-800 bg-slate-900/50 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                      <th className="p-4 pl-6">Policy Name</th>
-                      <th className="p-4">Type</th>
-                      <th className="p-4">Statements</th>
-                      <th className="p-4">Created At</th>
-                      <th className="p-4 pr-6 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-850">
-                    {(loading || isPoliciesLoading) && policies.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="p-8 text-center text-slate-500">
-                          Fetching policies from database...
-                        </td>
-                      </tr>
-                    ) : filteredPolicies.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="p-8 text-center text-slate-500">
-                          No policies found.
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredPolicies.map((p) => {
-                        const stmtCount = p.statements?.statements?.length || 0;
-                        return (
-                          <tr key={p.id} className="hover:bg-slate-900/30 group">
-                            <td className="p-4 pl-6">
-                              <div className="font-semibold text-white group-hover:text-indigo-400 transition-colors">
-                                {p.name}
-                              </div>
-                              {p.description && (
-                                <div className="text-xs text-slate-500 mt-1 max-w-sm truncate">
-                                  {p.description}
-                                </div>
-                              )}
-                            </td>
-                            <td className="p-4">
-                              <span className={`px-2 py-0.5 text-[10px] font-bold rounded ${
-                                p.type === 'MANAGED'
-                                  ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                                  : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                              }`}>
-                                {p.type}
-                              </span>
-                            </td>
-                            <td className="p-4 text-sm font-semibold text-slate-300">
-                              {stmtCount} {stmtCount === 1 ? 'statement' : 'statements'}
-                            </td>
-                            <td className="p-4 text-xs text-slate-500">
-                              {new Date(p.createdAt).toLocaleDateString()}
-                            </td>
-                            <td className="p-4 pr-6 text-right">
-                              <div className="flex items-center justify-end space-x-2">
-                                <button
-                                  type="button"
-                                  onClick={() => fetchPolicyDetails(p.id)}
-                                  className="p-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white rounded-lg transition-all cursor-pointer"
-                                  title="View Details"
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleEditOpen(p)}
-                                  className="p-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white rounded-lg transition-all cursor-pointer"
-                                  title="Edit Policy"
-                                >
-                                  <Edit3 className="h-4 w-4" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* DETAIL VIEW */}
-        {view === 'detail' && selectedPolicy && (
-          <div className="flex-1 flex flex-col min-h-0">
-            {/* Header */}
-            <div className="flex items-center space-x-3 mb-6 shrink-0">
-              <button
-                type="button"
-                onClick={() => setView('list')}
-                className="p-2 bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-white rounded-xl cursor-pointer"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <div>
-                <div className="flex items-center space-x-3">
-                  <h1 className="text-2xl font-bold text-white">{selectedPolicy.name}</h1>
-                  <span className={`px-2 py-0.5 text-[10px] font-bold rounded ${
-                    selectedPolicy.type === 'MANAGED'
-                      ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                      : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                  }`}>
-                    {selectedPolicy.type}
-                  </span>
+                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <span className="font-semibold">Operation Error:</span> {error}
                 </div>
-                <p className="text-xs text-slate-400 mt-1">{selectedPolicy.description || 'No description provided'}</p>
-              </div>
-            </div>
-
-            {/* Split Details Content */}
-            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Policy JSON display */}
-              <div className="lg:col-span-2 flex flex-col min-h-0 bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-3xl p-6 shadow-xl">
-                <div className="flex items-center justify-between mb-4 shrink-0">
-                  <span className="text-sm font-bold text-white flex items-center space-x-2">
-                    <FileText className="h-4 w-4 text-indigo-400" />
-                    <span>Policy Document JSON</span>
-                  </span>
-                  <div className="flex space-x-2">
-                    <button
-                      type="button"
-                      onClick={() => handleEditOpen(selectedPolicy)}
-                      className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-950 border border-slate-800 hover:bg-slate-800 text-xs font-semibold rounded-lg cursor-pointer text-slate-300"
-                    >
-                      <Edit3 className="h-3 w-3" />
-                      <span>Edit</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowDeleteConfirm(true)}
-                      className="flex items-center space-x-1.5 px-3 py-1.5 bg-rose-950/20 border border-rose-900/30 hover:bg-rose-950/50 text-xs font-semibold rounded-lg cursor-pointer text-rose-400"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                      <span>Delete</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex-1 min-h-0 overflow-auto bg-slate-950 border border-slate-850 rounded-2xl p-4 font-mono text-xs text-emerald-400 select-all">
-                  <pre>{JSON.stringify(selectedPolicy.statements, null, 2)}</pre>
-                </div>
-              </div>
-
-              {/* Attachments Sidebar */}
-              <div className="flex flex-col min-h-0 bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-3xl p-6 shadow-xl">
-                <h3 className="text-sm font-bold text-white mb-4 shrink-0">Policy Attachments</h3>
-                
-                {/* Scrollable list */}
-                <div className="flex-1 overflow-y-auto space-y-6">
-                  {/* Users */}
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Attached to Users</h4>
-                    {((selectedPolicy as any).users && (selectedPolicy as any).users.length > 0) ? (
-                      <div className="space-y-1.5">
-                        {(selectedPolicy as any).users.map((u: any) => (
-                          <div key={u.user.id} className="p-2.5 bg-slate-950 border border-slate-850 rounded-xl text-xs font-semibold">
-                            {u.user.name} ({u.user.email})
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-slate-500 italic">Not attached to any users.</p>
-                    )}
-                  </div>
-
-                  {/* Groups */}
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Attached to Groups</h4>
-                    {((selectedPolicy as any).groups && (selectedPolicy as any).groups.length > 0) ? (
-                      <div className="space-y-1.5">
-                        {(selectedPolicy as any).groups.map((g: any) => (
-                          <div key={g.group.id} className="p-2.5 bg-slate-950 border border-slate-850 rounded-xl text-xs font-semibold">
-                            {g.group.name}
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-slate-500 italic">Not attached to any groups.</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Delete Confirmation Modal */}
-            {showDeleteConfirm && (
-              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl">
-                  <h3 className="text-lg font-bold text-white mb-2">Delete Access Policy</h3>
-                  <p className="text-sm text-slate-400 mb-6">
-                    Are you sure you want to delete policy <span className="text-white font-semibold">{selectedPolicy.name}</span>? This action is permanent and will detach it from all groups or users.
-                  </p>
-                  <div className="flex justify-end space-x-3">
-                    <button
-                      type="button"
-                      onClick={() => setShowDeleteConfirm(false)}
-                      className="px-4 py-2 bg-slate-950 border border-slate-800 text-slate-400 hover:text-white text-sm font-semibold rounded-xl cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleDelete}
-                      disabled={loading}
-                      className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold rounded-xl cursor-pointer shadow-md"
-                    >
-                      {loading ? 'Deleting...' : 'Delete Policy'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* CREATE / EDIT VIEW (POLICY BUILDER) */}
-        {(view === 'create' || view === 'edit') && (
-          <form onSubmit={handleSave} className="flex-1 flex flex-col min-h-0">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-6 shrink-0">
-              <div className="flex items-center space-x-3">
-                <button
-                  type="button"
-                  onClick={() => setView(view === 'create' ? 'list' : 'detail')}
-                  className="p-2 bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-white rounded-xl cursor-pointer"
-                >
-                  <ChevronLeft className="h-4 w-4" />
+                <button onClick={() => setError('')} className="text-muted-foreground hover:text-foreground transition-colors">
+                  <X className="h-4 w-4" />
                 </button>
-                <h1 className="text-2xl font-bold text-white">
-                  {view === 'create' ? 'Create New Policy' : `Edit Policy: ${selectedPolicy?.name}`}
-                </h1>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* LIST VIEW */}
+          {view === 'list' && (
+            <>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 shrink-0">
+                <div>
+                  <h1 className="text-2xl font-bold text-foreground tracking-tight">Access Policies</h1>
+                  <p className="text-muted-foreground text-sm mt-1">
+                    Manage standalone reusable (MANAGED) or inline (INLINE) policies defining route privileges.
+                  </p>
+                </div>
+                <Button onClick={handleCreateOpen} className="gap-2 self-start sm:self-auto">
+                  <Plus className="h-4 w-4" />
+                  Create Policy
+                </Button>
               </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl cursor-pointer shadow-lg shadow-indigo-600/10"
-              >
-                {loading ? 'Saving...' : 'Save Policy'}
-              </button>
-            </div>
 
-            {/* Split Content */}
-            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-5 gap-6">
-              {/* Form Input fields and Statement Builder (60% / col-span-3) */}
-              <div className="lg:col-span-3 flex flex-col min-h-0 bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-3xl p-6 shadow-xl">
-                {/* Meta details */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 shrink-0">
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-                      Policy Name
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      disabled={view === 'edit'}
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="e.g. FinanceReportsAccess"
-                      className="w-full bg-slate-950 border border-slate-850 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl py-2 px-3 text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-                      Policy Type
-                    </label>
-                    <select
-                      value={type}
-                      onChange={(e) => setType(e.target.value)}
-                      disabled={view === 'edit'}
-                      className="w-full bg-slate-950 border border-slate-850 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl py-2.5 px-3 text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-sm"
-                    >
-                      <option value="MANAGED">MANAGED (Reusable)</option>
-                      <option value="INLINE">INLINE (Coupled to single identity)</option>
-                    </select>
-                  </div>
-                  {type === 'INLINE' && view === 'create' && (
-                    <>
-                      <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-                          Attach To Type
-                        </label>
-                        <select
-                          value={attachToType}
-                          onChange={(e) => setAttachToType(e.target.value as 'user' | 'group')}
-                          className="w-full bg-slate-950 border border-slate-850 rounded-xl py-2.5 px-3 text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-sm"
-                        >
-                          <option value="user">User</option>
-                          <option value="group">Group</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-                          {attachToType === 'user' ? 'Select Target User' : 'Select Target Group'}
-                        </label>
-                        <select
-                          value={attachToType === 'user' ? targetUserId : targetGroupId}
-                          onChange={(e) => {
-                            if (attachToType === 'user') {
-                              setTargetUserId(e.target.value);
-                            } else {
-                              setTargetGroupId(e.target.value);
-                            }
-                          }}
-                          className="w-full bg-slate-950 border border-slate-850 rounded-xl py-2.5 px-3 text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-sm"
-                        >
-                          <option value="">-- Choose target --</option>
-                          {attachToType === 'user'
-                            ? usersList.map(u => (
-                                <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
-                              ))
-                            : groupsList.map(g => (
-                                <option key={g.id} value={g.id}>{g.name}</option>
-                              ))
-                          }
-                        </select>
-                      </div>
-                    </>
-                  )}
-                  <div className="md:col-span-2">
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-                      Description
-                    </label>
-                    <input
-                      type="text"
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      placeholder="Allows access to specific business units..."
-                      className="w-full bg-slate-950 border border-slate-850 rounded-xl py-2 px-3 text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-sm"
-                    />
-                  </div>
+              {/* Search */}
+              <div className="relative mb-5 shrink-0 max-w-md">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted-foreground">
+                  <Search className="h-4 w-4" />
                 </div>
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search policies by name or description..."
+                  className="pl-10"
+                />
+              </div>
 
-                <div className="border-t border-slate-850/80 my-2 shrink-0"></div>
-
-                {/* Statements header */}
-                <div className="flex items-center justify-between mb-4 shrink-0">
-                  <h3 className="text-sm font-bold text-white">Policy Statements</h3>
-                  <button
-                    type="button"
-                    onClick={handleAddStatement}
-                    className="flex items-center space-x-1 px-3 py-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-xs font-semibold rounded-lg text-indigo-400 cursor-pointer"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    <span>Add Statement</span>
-                  </button>
-                </div>
-
-                {/* Scrollable list of statements */}
-                <div className="flex-1 overflow-y-auto space-y-6 pr-2">
-                  {statements.map((stmt, stmtIndex) => (
-                    <div
-                      key={stmtIndex}
-                      className="relative p-5 bg-slate-950/80 border border-slate-850 rounded-2xl space-y-4 shadow-md group"
-                    >
-                      {/* Delete statement button */}
-                      {statements.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveStatement(stmtIndex)}
-                          className="absolute top-4 right-4 p-1.5 bg-slate-900 border border-slate-800 text-slate-500 hover:text-rose-400 rounded-lg transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-
-                      <span className="absolute top-4 left-4 text-[10px] font-bold bg-slate-900 text-slate-500 border border-slate-850 px-2 py-0.5 rounded-full">
-                        Statement #{stmtIndex + 1}
-                      </span>
-
-                      <div className="pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Effect Toggle */}
-                        <div>
-                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                            Effect
-                          </label>
-                          <div className="flex bg-slate-900 border border-slate-850 p-0.5 rounded-xl max-w-[200px]">
-                            <button
-                              type="button"
-                              onClick={() => handleStatementChange(stmtIndex, 'Effect', 'Allow')}
-                              className={`flex-1 text-center py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all ${
-                                stmt.Effect === 'Allow'
-                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm'
-                                  : 'text-slate-500 hover:text-slate-300'
-                              }`}
-                            >
-                              Allow
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleStatementChange(stmtIndex, 'Effect', 'Deny')}
-                              className={`flex-1 text-center py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all ${
-                                stmt.Effect === 'Deny'
-                                  ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20 shadow-sm'
-                                  : 'text-slate-500 hover:text-slate-300'
-                              }`}
-                            >
-                              Deny
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Resource Locked Input */}
-                        <div>
-                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                            Resource
-                          </label>
-                          <input
-                            type="text"
-                            disabled
-                            value='["*"]'
-                            className="w-full max-w-[200px] bg-slate-900 border border-slate-850 opacity-40 cursor-not-allowed rounded-xl py-1.5 px-3 text-slate-400 font-mono text-xs"
-                          />
-                        </div>
-
-                        {/* Action Multi-select Checklist */}
-                        <div className="md:col-span-2">
-                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                            Actions
-                          </label>
-                          
-                          {/* Selected Actions badges */}
-                          <div className="flex flex-wrap gap-1.5 p-2 bg-slate-900 border border-slate-850 rounded-xl min-h-[42px] mb-2">
-                            {stmt.Action.length === 0 ? (
-                              <span className="text-xs text-slate-600 p-1 italic">No actions selected. Choose from dropdown below.</span>
-                            ) : (
-                              stmt.Action.map(act => (
-                                <span
-                                  key={act}
-                                  className="inline-flex items-center space-x-1 px-2 py-0.5 text-[11px] font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-md"
-                                >
-                                  <span>{act}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleToggleAction(stmtIndex, act)}
-                                    className="hover:text-white font-bold text-xs"
+              {/* Table */}
+              <Card className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                <div className="flex-1 overflow-y-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/20 hover:bg-muted/20">
+                        <TableHead className="pl-6">Policy Name</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Statements</TableHead>
+                        <TableHead>Created At</TableHead>
+                        <TableHead className="pr-6 text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(loading || isPoliciesLoading) && policies.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="p-8 text-center text-muted-foreground">
+                            Fetching policies from database...
+                          </TableCell>
+                        </TableRow>
+                      ) : filteredPolicies.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="p-8 text-center text-muted-foreground">
+                            No policies found.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredPolicies.map((p) => {
+                          const stmtCount = p.statements?.statements?.length || 0;
+                          return (
+                            <TableRow key={p.id} className="group">
+                              <TableCell className="pl-6">
+                                <div className="font-semibold text-foreground group-hover:text-primary transition-colors">
+                                  {p.name}
+                                </div>
+                                {p.description && (
+                                  <div className="text-xs text-muted-foreground mt-1 max-w-sm truncate">
+                                    {p.description}
+                                  </div>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={p.type === 'MANAGED' ? 'info' : 'warning'}>
+                                  {p.type}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-sm font-medium text-foreground/80">
+                                {stmtCount} {stmtCount === 1 ? 'statement' : 'statements'}
+                              </TableCell>
+                              <TableCell className="text-xs text-muted-foreground">
+                                {new Date(p.createdAt).toLocaleDateString()}
+                              </TableCell>
+                              <TableCell className="pr-6 text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => fetchPolicyDetails(p.id)}
+                                    className="h-8 w-8"
+                                    title="View Details"
                                   >
-                                    <X className="h-3 w-3" />
-                                  </button>
-                                </span>
-                              ))
-                            )}
-                          </div>
-
-                          {/* Toggle Dropdown panel Button */}
-                          <div className="relative">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setActionSearch('');
-                                setActiveDropdownIndex(activeDropdownIndex === stmtIndex ? null : stmtIndex);
-                              }}
-                              className="w-full flex items-center justify-between bg-slate-900 hover:bg-slate-850 border border-slate-850 hover:border-slate-800 rounded-xl py-2 px-3 text-xs font-semibold text-slate-300 hover:text-white transition-all cursor-pointer"
-                            >
-                              <span>Manage Policy Actions</span>
-                              <Plus className="h-4 w-4 text-slate-400" />
-                            </button>
-
-                            {/* Dropdown contents */}
-                            {activeDropdownIndex === stmtIndex && (
-                              <div className="absolute left-0 right-0 mt-2 p-3 bg-slate-900 border border-slate-850 rounded-2xl shadow-2xl z-20 flex flex-col max-h-[300px]">
-                                {/* Dropdown Search Box */}
-                                <div className="relative mb-2 shrink-0">
-                                  <input
-                                    type="text"
-                                    value={actionSearch}
-                                    onChange={(e) => setActionSearch(e.target.value)}
-                                    placeholder="Filter action strings..."
-                                    className="w-full bg-slate-950 border border-slate-850 rounded-lg py-1.5 px-3 text-xs text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                  />
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleEditOpen(p)}
+                                    className="h-8 w-8"
+                                    title="Edit Policy"
+                                  >
+                                    <Edit3 className="h-4 w-4" />
+                                  </Button>
                                 </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </Card>
+            </>
+          )}
 
-                                {/* Checklist */}
-                                <div className="flex-1 overflow-y-auto space-y-1">
-                                  {VALID_ACTIONS.filter(act => act.toLowerCase().includes(actionSearch.toLowerCase())).map(act => {
-                                    const isChecked = stmt.Action.includes(act);
-                                    return (
-                                      <label
-                                        key={act}
-                                        className="flex items-center space-x-2.5 px-2 py-1.5 hover:bg-slate-950 rounded-lg cursor-pointer text-xs transition-colors"
-                                      >
-                                        <input
-                                          type="checkbox"
-                                          checked={isChecked}
-                                          onChange={() => handleToggleAction(stmtIndex, act)}
-                                          className="rounded border-slate-800 text-indigo-600 focus:ring-0 focus:ring-offset-0 bg-slate-950"
-                                        />
-                                        <span className={`font-mono ${isChecked ? 'text-indigo-400 font-bold' : 'text-slate-400'}`}>
-                                          {act}
-                                        </span>
-                                      </label>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
+          {/* DETAIL VIEW */}
+          {view === 'detail' && selectedPolicy && (
+            <div className="flex-1 flex flex-col min-h-0">
+              {/* Header */}
+              <div className="flex items-center gap-3 mb-6 shrink-0">
+                <Button variant="outline" size="icon" onClick={() => setView('list')} className="h-9 w-9">
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <div>
+                  <div className="flex items-center gap-3">
+                    <h1 className="text-xl font-bold text-foreground">{selectedPolicy.name}</h1>
+                    <Badge variant={selectedPolicy.type === 'MANAGED' ? 'info' : 'warning'}>
+                      {selectedPolicy.type}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">{selectedPolicy.description || 'No description provided'}</p>
+                </div>
+              </div>
+
+              {/* Split Details */}
+              <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-5">
+                {/* Policy JSON */}
+                <Card className="lg:col-span-2 flex flex-col min-h-0">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-primary" />
+                        Policy Document JSON
+                      </CardTitle>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => handleEditOpen(selectedPolicy)} className="gap-1.5 h-7 text-xs">
+                          <Edit3 className="h-3 w-3" />
+                          Edit
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => setShowDeleteConfirm(true)} className="gap-1.5 h-7 text-xs text-destructive hover:text-destructive border-destructive/20 hover:bg-destructive/10">
+                          <Trash2 className="h-3 w-3" />
+                          Delete
+                        </Button>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  </CardHeader>
+                  <CardContent className="flex-1 min-h-0">
+                    <div className="h-full overflow-auto bg-background border border-border/50 rounded-xl p-4 font-mono text-xs text-emerald-400 select-all">
+                      <pre>{JSON.stringify(selectedPolicy.statements, null, 2)}</pre>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Attachments */}
+                <Card className="flex flex-col min-h-0">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm">Policy Attachments</CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex-1 overflow-y-auto space-y-5">
+                    {/* Users */}
+                    <div>
+                      <Label className="mb-2 block">Attached to Users</Label>
+                      {((selectedPolicy as any).users && (selectedPolicy as any).users.length > 0) ? (
+                        <div className="space-y-1.5">
+                          {(selectedPolicy as any).users.map((u: any) => (
+                            <div key={u.user.id} className="p-2.5 bg-background border border-border/50 rounded-lg text-xs font-medium">
+                              {u.user.name} ({u.user.email})
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">Not attached to any users.</p>
+                      )}
+                    </div>
+
+                    {/* Groups */}
+                    <div>
+                      <Label className="mb-2 block">Attached to Groups</Label>
+                      {((selectedPolicy as any).groups && (selectedPolicy as any).groups.length > 0) ? (
+                        <div className="space-y-1.5">
+                          {(selectedPolicy as any).groups.map((g: any) => (
+                            <div key={g.group.id} className="p-2.5 bg-background border border-border/50 rounded-lg text-xs font-medium">
+                              {g.group.name}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">Not attached to any groups.</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
 
-              {/* JSON Live Preview (40% / col-span-2) */}
-              <div className="lg:col-span-2 flex flex-col min-h-0 bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-3xl p-6 shadow-xl">
-                <span className="text-sm font-bold text-white mb-4 flex items-center space-x-2 shrink-0">
-                  <FileText className="h-4 w-4 text-indigo-400" />
-                  <span>Real-Time JSON Preview</span>
-                </span>
-
-                <div className="flex-1 min-h-0 overflow-auto bg-slate-950 border border-slate-850 rounded-2xl p-4 font-mono text-[11px] text-emerald-400 select-all">
-                  <pre>{getJsonPreview()}</pre>
-                </div>
-              </div>
+              {/* Delete Confirmation Modal */}
+              <AnimatePresence>
+                {showDeleteConfirm && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+                  >
+                    <motion.div
+                      variants={scaleIn}
+                      initial="initial"
+                      animate="animate"
+                      exit="exit"
+                      className="bg-card border border-border rounded-2xl p-6 max-w-md w-full shadow-2xl"
+                    >
+                      <h3 className="text-lg font-bold text-foreground mb-2">Delete Access Policy</h3>
+                      <p className="text-sm text-muted-foreground mb-6">
+                        Are you sure you want to delete policy <span className="text-foreground font-semibold">{selectedPolicy.name}</span>? This action is permanent and will detach it from all groups or users.
+                      </p>
+                      <div className="flex justify-end gap-3">
+                        <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
+                          Cancel
+                        </Button>
+                        <Button variant="destructive" onClick={handleDelete} disabled={loading}>
+                          {loading ? 'Deleting...' : 'Delete Policy'}
+                        </Button>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
-          </form>
-        )}
+          )}
+
+          {/* CREATE / EDIT VIEW (POLICY BUILDER) */}
+          {(view === 'create' || view === 'edit') && (
+            <form onSubmit={handleSave} className="flex-1 flex flex-col min-h-0">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-6 shrink-0">
+                <div className="flex items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setView(view === 'create' ? 'list' : 'detail')}
+                    className="h-9 w-9"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <h1 className="text-xl font-bold text-foreground">
+                    {view === 'create' ? 'Create New Policy' : `Edit Policy: ${selectedPolicy?.name}`}
+                  </h1>
+                </div>
+                <Button type="submit" disabled={loading}>
+                  {loading ? 'Saving...' : 'Save Policy'}
+                </Button>
+              </div>
+
+              {/* Split Content */}
+              <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-5 gap-5">
+                {/* Form Input fields and Statement Builder (col-span-3) */}
+                <Card className="lg:col-span-3 flex flex-col min-h-0">
+                  <CardContent className="p-6 flex-1 flex flex-col min-h-0">
+                    {/* Meta details */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5 shrink-0">
+                      <div className="space-y-1.5">
+                        <Label>Policy Name</Label>
+                        <Input
+                          required
+                          disabled={view === 'edit'}
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          placeholder="e.g. FinanceReportsAccess"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Policy Type</Label>
+                        <select
+                          value={type}
+                          onChange={(e) => setType(e.target.value)}
+                          disabled={view === 'edit'}
+                          className="flex h-10 w-full rounded-lg border border-input bg-background/50 px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+                        >
+                          <option value="MANAGED">MANAGED (Reusable)</option>
+                          <option value="INLINE">INLINE (Coupled to single identity)</option>
+                        </select>
+                      </div>
+                      {type === 'INLINE' && view === 'create' && (
+                        <>
+                          <div className="space-y-1.5">
+                            <Label>Attach To Type</Label>
+                            <select
+                              value={attachToType}
+                              onChange={(e) => setAttachToType(e.target.value as 'user' | 'group')}
+                              className="flex h-10 w-full rounded-lg border border-input bg-background/50 px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 transition-all"
+                            >
+                              <option value="user">User</option>
+                              <option value="group">Group</option>
+                            </select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>{attachToType === 'user' ? 'Select Target User' : 'Select Target Group'}</Label>
+                            <select
+                              value={attachToType === 'user' ? targetUserId : targetGroupId}
+                              onChange={(e) => {
+                                if (attachToType === 'user') {
+                                  setTargetUserId(e.target.value);
+                                } else {
+                                  setTargetGroupId(e.target.value);
+                                }
+                              }}
+                              className="flex h-10 w-full rounded-lg border border-input bg-background/50 px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 transition-all"
+                            >
+                              <option value="">-- Choose target --</option>
+                              {attachToType === 'user'
+                                ? usersList.map(u => (
+                                    <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                                  ))
+                                : groupsList.map(g => (
+                                    <option key={g.id} value={g.id}>{g.name}</option>
+                                  ))
+                              }
+                            </select>
+                          </div>
+                        </>
+                      )}
+                      <div className="md:col-span-2 space-y-1.5">
+                        <Label>Description</Label>
+                        <Input
+                          value={description}
+                          onChange={(e) => setDescription(e.target.value)}
+                          placeholder="Allows access to specific business units..."
+                        />
+                      </div>
+                    </div>
+
+                    <Separator className="mb-4 shrink-0" />
+
+                    {/* Statements header */}
+                    <div className="flex items-center justify-between mb-4 shrink-0">
+                      <h3 className="text-sm font-bold text-foreground">Policy Statements</h3>
+                      <Button type="button" variant="outline" size="sm" onClick={handleAddStatement} className="gap-1.5 h-7 text-xs">
+                        <Plus className="h-3 w-3" />
+                        Add Statement
+                      </Button>
+                    </div>
+
+                    {/* Scrollable statements */}
+                    <div className="flex-1 overflow-y-auto space-y-5 pr-1">
+                      {statements.map((stmt, stmtIndex) => (
+                        <motion.div
+                          key={stmtIndex}
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="relative p-5 bg-background/60 border border-border/50 rounded-xl space-y-4"
+                        >
+                          {/* Delete statement button */}
+                          {statements.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleRemoveStatement(stmtIndex)}
+                              className="absolute top-3 right-3 h-7 w-7 text-muted-foreground hover:text-destructive"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+
+                          <Badge variant="secondary" className="text-[9px]">
+                            Statement #{stmtIndex + 1}
+                          </Badge>
+
+                          <div className="pt-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Effect Toggle */}
+                            <div className="space-y-1.5">
+                              <Label>Effect</Label>
+                              <div className="flex bg-muted/50 border border-border/50 p-0.5 rounded-lg max-w-[200px]">
+                                <button
+                                  type="button"
+                                  onClick={() => handleStatementChange(stmtIndex, 'Effect', 'Allow')}
+                                  className={`flex-1 text-center py-1.5 text-xs font-bold rounded-md cursor-pointer transition-all ${
+                                    stmt.Effect === 'Allow'
+                                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm'
+                                      : 'text-muted-foreground hover:text-foreground'
+                                  }`}
+                                >
+                                  Allow
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleStatementChange(stmtIndex, 'Effect', 'Deny')}
+                                  className={`flex-1 text-center py-1.5 text-xs font-bold rounded-md cursor-pointer transition-all ${
+                                    stmt.Effect === 'Deny'
+                                      ? 'bg-destructive/10 text-destructive border border-destructive/20 shadow-sm'
+                                      : 'text-muted-foreground hover:text-foreground'
+                                  }`}
+                                >
+                                  Deny
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Resource Locked */}
+                            <div className="space-y-1.5">
+                              <Label>Resource</Label>
+                              <Input
+                                disabled
+                                value='["*"]'
+                                className="max-w-[200px] opacity-40 cursor-not-allowed font-mono text-xs"
+                              />
+                            </div>
+
+                            {/* Action Multi-select */}
+                            <div className="md:col-span-2 space-y-1.5">
+                              <Label>Actions</Label>
+                              
+                              {/* Selected Actions badges */}
+                              <div className="flex flex-wrap gap-1.5 p-2.5 bg-muted/30 border border-border/50 rounded-lg min-h-[42px]">
+                                {stmt.Action.length === 0 ? (
+                                  <span className="text-xs text-muted-foreground p-1 italic">No actions selected. Choose from dropdown below.</span>
+                                ) : (
+                                  stmt.Action.map(act => (
+                                    <Badge key={act} variant="default" className="text-[10px] gap-1 pr-1">
+                                      <span>{act}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleToggleAction(stmtIndex, act)}
+                                        className="hover:text-foreground font-bold text-xs ml-0.5"
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </button>
+                                    </Badge>
+                                  ))
+                                )}
+                              </div>
+
+                              {/* Toggle Dropdown */}
+                              <div className="relative">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setActionSearch('');
+                                    setActiveDropdownIndex(activeDropdownIndex === stmtIndex ? null : stmtIndex);
+                                  }}
+                                  className="w-full justify-between h-9 text-xs"
+                                >
+                                  <span>Manage Policy Actions</span>
+                                  <Plus className="h-3.5 w-3.5 text-muted-foreground" />
+                                </Button>
+
+                                {/* Dropdown */}
+                                <AnimatePresence>
+                                  {activeDropdownIndex === stmtIndex && (
+                                    <motion.div
+                                      initial={{ opacity: 0, y: -4 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      exit={{ opacity: 0, y: -4 }}
+                                      transition={{ duration: 0.15 }}
+                                      className="absolute left-0 right-0 mt-2 p-3 bg-card border border-border rounded-xl shadow-2xl z-20 flex flex-col max-h-[300px]"
+                                    >
+                                      <Input
+                                        value={actionSearch}
+                                        onChange={(e) => setActionSearch(e.target.value)}
+                                        placeholder="Filter action strings..."
+                                        className="mb-2 h-8 text-xs"
+                                      />
+                                      <div className="flex-1 overflow-y-auto space-y-0.5">
+                                        {VALID_ACTIONS.filter(act => act.toLowerCase().includes(actionSearch.toLowerCase())).map(act => {
+                                          const isChecked = stmt.Action.includes(act);
+                                          return (
+                                            <label
+                                              key={act}
+                                              className="flex items-center gap-2.5 px-2 py-1.5 hover:bg-muted/50 rounded-lg cursor-pointer text-xs transition-colors"
+                                            >
+                                              <input
+                                                type="checkbox"
+                                                checked={isChecked}
+                                                onChange={() => handleToggleAction(stmtIndex, act)}
+                                                className="rounded border-border text-primary focus:ring-0 focus:ring-offset-0 bg-background"
+                                              />
+                                              <span className={`font-mono ${isChecked ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
+                                                {act}
+                                              </span>
+                                            </label>
+                                          );
+                                        })}
+                                      </div>
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* JSON Live Preview (col-span-2) */}
+                <Card className="lg:col-span-2 flex flex-col min-h-0">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-primary" />
+                      Real-Time JSON Preview
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex-1 min-h-0">
+                    <div className="h-full overflow-auto bg-background border border-border/50 rounded-xl p-4 font-mono text-[11px] text-emerald-400 select-all">
+                      <pre>{getJsonPreview()}</pre>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </form>
+          )}
+        </PageWrapper>
       </div>
     </div>
   );

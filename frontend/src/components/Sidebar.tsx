@@ -1,12 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Shield, Key, Users, User, LogOut, Grid } from 'lucide-react';
+import { Shield, Key, Users, User, LogOut, LayoutDashboard, Menu } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import api from '../services/api';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { useAuth } from '../context/AuthContext';
 
 const Sidebar = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const { user, logout } = useAuth();
+
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    return localStorage.getItem('sidebar-collapsed') === 'true';
+  });
 
   const handleLogout = async () => {
     try {
@@ -14,90 +23,206 @@ const Sidebar = () => {
     } catch (err) {
       console.error('Logout API call failed', err);
     } finally {
-      localStorage.removeItem('token');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('user');
+      logout();
       navigate('/login');
     }
   };
 
+  const toggleSidebar = () => {
+    const nextState = !isCollapsed;
+    setIsCollapsed(nextState);
+    localStorage.setItem('sidebar-collapsed', String(nextState));
+  };
+
   const navItems = [
-    { name: 'Dashboard', path: '/dashboard', icon: Grid },
+    { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { name: 'Policies', path: '/iam/policies', icon: Key },
     { name: 'Groups', path: '/iam/groups', icon: Users },
     { name: 'Users', path: '/iam/users', icon: User },
   ];
 
+  const initials = (user?.name || 'U').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+
   return (
-    <div className="w-64 min-h-screen bg-slate-950 border-r border-slate-800 text-slate-200 flex flex-col justify-between shrink-0">
+    <motion.div
+      initial={{ x: -20, opacity: 0 }}
+      animate={{ 
+        x: 0, 
+        opacity: 1,
+        width: isCollapsed ? 72 : 260
+      }}
+      transition={{ type: 'spring', stiffness: 220, damping: 26 }}
+      className="relative min-h-screen bg-sidebar border-r border-sidebar-border text-sidebar-foreground flex flex-col justify-between shrink-0 select-none"
+    >
       <div>
-        {/* Brand Header */}
-        <div className="p-6 border-b border-slate-800 flex items-center space-x-3">
-          <div className="p-2 bg-indigo-600/20 text-indigo-400 rounded-lg border border-indigo-500/30">
-            <Shield className="h-6 w-6 animate-pulse" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight text-white bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
-              Antigravity IAM
-            </h1>
-            <p className="text-xs text-slate-500 font-medium">Self-Administered</p>
-          </div>
+        {/* Brand Header & Toggle Button */}
+        <div className={`p-4 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} h-[64px] shrink-0 overflow-hidden`}>
+          <AnimatePresence initial={false}>
+            {!isCollapsed && (
+              <motion.div
+                initial={{ opacity: 0, width: 0 }}
+                animate={{ opacity: 1, width: 'auto' }}
+                exit={{ opacity: 0, width: 0 }}
+                transition={{ duration: 0.2 }}
+                className="flex items-center gap-2.5 overflow-hidden"
+              >
+                <Link to="/dashboard" className="flex items-center gap-2.5 group shrink-0">
+                  <div className="p-2 bg-primary/15 text-primary rounded-xl border border-primary/20 shadow-lg shadow-primary/5 group-hover:shadow-primary/15 transition-all duration-300">
+                    <Shield className="h-5 w-5" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-bold tracking-tight text-foreground whitespace-nowrap">
+                      SecureIAM
+                    </span>
+                    <span className="text-[9px] text-muted-foreground font-medium tracking-wide uppercase">Console</span>
+                  </div>
+                </Link>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <motion.div layout transition={{ type: 'spring', stiffness: 220, damping: 26 }} className="shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg cursor-pointer"
+              onClick={toggleSidebar}
+            >
+              <Menu className="h-4 w-4" />
+            </Button>
+          </motion.div>
         </div>
 
+        <Separator className="opacity-50" />
+
         {/* Navigation Links */}
-        <nav className="p-4 space-y-1.5">
-          {navItems.map((item) => {
+        <nav className="p-3 space-y-1 mt-2">
+          {navItems.map((item, index) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
             return (
-              <Link
+              <motion.div
                 key={item.path}
-                to={item.path}
-                className={`flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 group ${
-                  isActive
-                    ? 'bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 font-medium'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900 border border-transparent'
-                }`}
+                initial={{ opacity: 0, x: -12 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.05 + index * 0.03, duration: 0.3 }}
               >
-                <Icon className={`h-5 w-5 transition-transform duration-200 group-hover:scale-110 ${
-                  isActive ? 'text-indigo-400' : 'text-slate-400 group-hover:text-indigo-400'
-                }`} />
-                <span>{item.name}</span>
-              </Link>
+                <Link
+                  to={item.path}
+                  className={`relative flex items-center py-2.5 rounded-xl transition-all duration-300 group text-[13px] font-medium ${
+                    isCollapsed ? 'justify-center px-0' : 'gap-3 px-4'
+                  } ${
+                    isActive
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  }`}
+                  title={isCollapsed ? item.name : undefined}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeNav"
+                      className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-primary rounded-r-full"
+                      transition={{ type: "spring", bounce: 0.25, duration: 0.5 }}
+                    />
+                  )}
+                  <Icon className={`h-[18px] w-[18px] transition-all duration-200 shrink-0 ${
+                    isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-primary/70'
+                  }`} />
+                  
+                  <AnimatePresence initial={false}>
+                    {!isCollapsed && (
+                      <motion.span
+                        initial={{ opacity: 0, width: 0 }}
+                        animate={{ opacity: 1, width: 'auto' }}
+                        exit={{ opacity: 0, width: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="whitespace-nowrap overflow-hidden"
+                      >
+                        {item.name}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </Link>
+              </motion.div>
             );
           })}
         </nav>
       </div>
 
       {/* User Session Footer */}
-      <div className="p-4 border-t border-slate-800 bg-slate-950/50">
-        <div className="flex items-center justify-between mb-4">
-          <div className="overflow-hidden pr-2">
-            <div className="text-sm font-semibold text-white truncate">{user.name || 'User'}</div>
-            <div className="text-xs text-slate-500 truncate">{user.email || 'user@org.local'}</div>
+      <div className="p-4.5 border-t border-sidebar-border overflow-hidden shrink-0">
+        <div className="flex items-center gap-3 mb-3">
+          {/* Avatar */}
+          <div 
+            className="h-9 w-9 rounded-lg bg-gradient-to-br from-primary/30 to-primary/10 border border-primary/20 flex items-center justify-center text-xs font-bold text-primary shrink-0 cursor-help"
+            title={isCollapsed ? `${user?.name || 'User'} (${user?.email || 'user@org.local'})` : undefined}
+          >
+            {initials}
           </div>
-          <div>
-            {user.isRoot ? (
-              <span className="px-2 py-0.5 text-[10px] font-bold text-red-400 bg-red-500/10 border border-red-500/20 rounded-full uppercase tracking-wider animate-pulse">
-                Root
-              </span>
-            ) : (
-              <span className="px-2 py-0.5 text-[10px] font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 rounded-full uppercase tracking-wider">
-                Member
-              </span>
+          
+          <AnimatePresence initial={false}>
+            {!isCollapsed && (
+              <motion.div
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                transition={{ duration: 0.2 }}
+                className="flex-1 min-w-0 flex items-center justify-between"
+              >
+                <div className="flex-1 min-w-0 pr-2">
+                  <div className="text-sm font-semibold text-foreground truncate">{user?.name || 'User'}</div>
+                  <div className="text-[11px] text-muted-foreground truncate">{user?.email || 'user@org.local'}</div>
+                </div>
+                {user?.isRoot ? (
+                  <Badge variant="destructive" className="shrink-0 text-[9px]">Root</Badge>
+                ) : (
+                  <Badge variant="default" className="shrink-0 text-[9px]">Member</Badge>
+                )}
+              </motion.div>
             )}
-          </div>
+          </AnimatePresence>
         </div>
 
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-850 hover:border-slate-700 rounded-xl transition-all duration-200 cursor-pointer"
-        >
-          <LogOut className="h-4 w-4" />
-          <span className="text-sm font-medium">Log Out</span>
-        </button>
+        <AnimatePresence initial={false}>
+          {!isCollapsed ? (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              transition={{ duration: 0.2 }}
+            >
+              <Button
+                onClick={handleLogout}
+                variant="outline"
+                size="sm"
+                className="w-full justify-center gap-2 text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                <span>Log Out</span>
+              </Button>
+            </motion.div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              transition={{ duration: 0.2 }}
+              className="flex justify-center"
+            >
+              <Button
+                onClick={handleLogout}
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer"
+                title="Log Out"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+              </Button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
-    </div>
+    </motion.div>
   );
 };
 

@@ -1,7 +1,13 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import Sidebar from '../components/Sidebar';
 import api from '../services/api';
-import { Play, RotateCcw, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { Play, RotateCcw, AlertTriangle, ShieldCheck, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { PageWrapper, fadeInUp, staggerContainer } from '@/components/ui/motion';
+import { useAuth } from '../context/AuthContext';
 
 interface TestActionItem {
   name: string;
@@ -17,7 +23,7 @@ interface TestResult {
 }
 
 const Dashboard = () => {
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const { user } = useAuth();
 
   const resourceCategories = [
     {
@@ -60,7 +66,7 @@ const Dashboard = () => {
     }
   ];
 
-  // Store results for each action in an object: { 'reports:List': { status: 'idle|loading|allowed|denied', code: null } }
+  // Store results for each action
   const [results, setResults] = useState<Record<string, TestResult>>({});
 
   const handleTestAction = async (item: TestActionItem) => {
@@ -117,124 +123,135 @@ const Dashboard = () => {
     setResults({});
   };
 
+  const getMethodBadgeVariant = (method: string) => {
+    switch (method) {
+      case 'GET': return 'info';
+      case 'POST': return 'success';
+      case 'PUT': return 'warning';
+      case 'PATCH': return 'default';
+      case 'DELETE': return 'destructive';
+      default: return 'secondary';
+    }
+  };
+
   const getStatusBadge = (res: TestResult | undefined) => {
     if (!res) {
-      return (
-        <span className="px-2.5 py-1 text-xs font-semibold text-slate-500 bg-slate-800/40 border border-slate-700/50 rounded-lg">
-          Not Tested
-        </span>
-      );
+      return <Badge variant="secondary" className="text-[9px]">Not Tested</Badge>;
     }
     if (res.status === 'loading') {
       return (
-        <span className="px-2.5 py-1 text-xs font-semibold text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 rounded-lg animate-pulse">
+        <Badge variant="warning" className="text-[9px] animate-pulse">
+          <Loader2 className="h-3 w-3 animate-spin" />
           Testing...
-        </span>
+        </Badge>
       );
     }
     if (res.status === 'allowed') {
       return (
-        <span className="px-2.5 py-1 text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg flex items-center space-x-1">
-          <ShieldCheck className="h-3 w-3 shrink-0" />
-          <span>Allowed (200)</span>
-        </span>
+        <Badge variant="success" className="text-[9px]">
+          <ShieldCheck className="h-3 w-3" />
+          Allowed (200)
+        </Badge>
       );
     }
     if (res.status === 'denied') {
       return (
-        <span className="px-2.5 py-1 text-xs font-semibold text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-lg flex items-center space-x-1">
-          <AlertTriangle className="h-3 w-3 shrink-0" />
-          <span>Denied (403)</span>
-        </span>
+        <Badge variant="destructive" className="text-[9px]">
+          <AlertTriangle className="h-3 w-3" />
+          Denied (403)
+        </Badge>
       );
     }
-    return (
-      <span className="px-2.5 py-1 text-xs font-semibold text-amber-500 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-        Err ({res.code})
-      </span>
-    );
+    return <Badge variant="warning" className="text-[9px]">Err ({res.code})</Badge>;
   };
 
   return (
-    <div className="flex h-screen bg-slate-950 overflow-hidden text-slate-100">
+    <div className="flex h-screen bg-background overflow-hidden text-foreground">
       <Sidebar />
       
-      {/* Main Content Scroll container */}
-      <div className="flex-1 overflow-y-auto bg-slate-950 p-8 relative">
-        {/* Glow effects */}
-        <div className="absolute top-10 right-10 w-80 h-80 bg-indigo-600/5 rounded-full blur-3xl -z-10"></div>
+      {/* Main Content */}
+      <div className="flex-1 overflow-y-auto p-8 relative">
+        {/* Background glow */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-[120px] -z-10" />
 
-        {/* Dashboard Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-3xl font-extrabold text-white tracking-tight">Resource Action Center</h1>
-            <p className="text-slate-400 text-sm mt-1">
-              Verify your active permissions by dispatching authenticated requests to dummy system APIs.
-            </p>
-          </div>
-          <button
-            onClick={handleReset}
-            className="self-start md:self-auto flex items-center space-x-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white rounded-xl transition-all cursor-pointer text-sm font-semibold shadow-md"
-          >
-            <RotateCcw className="h-4 w-4" />
-            <span>Reset Test Console</span>
-          </button>
-        </div>
-
-        {/* Action Grids */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          {resourceCategories.map((category) => (
-            <div
-              key={category.title}
-              className="bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col justify-between"
-            >
-              <div>
-                <h3 className="text-lg font-bold text-white mb-1">{category.title}</h3>
-                <p className="text-xs text-slate-400 mb-6">{category.description}</p>
-                
-                <div className="space-y-3">
-                  {category.actions.map((item) => {
-                    const testResult = results[item.action];
-                    return (
-                      <div
-                        key={item.action}
-                        className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 bg-slate-950/60 border border-slate-850 hover:border-slate-800 rounded-2xl transition-all gap-3"
-                      >
-                        <div className="overflow-hidden pr-2">
-                          <div className="flex items-center space-x-2">
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase font-mono ${
-                              item.method === 'GET' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
-                              item.method === 'POST' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                              item.method === 'PUT' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' :
-                              item.method === 'PATCH' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' :
-                              'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                            }`}>
-                              {item.method}
-                            </span>
-                            <span className="text-sm font-semibold text-slate-200">{item.name}</span>
-                          </div>
-                          <div className="text-[11px] font-mono text-slate-500 mt-1 select-all">{item.action}</div>
-                        </div>
-
-                        <div className="flex items-center space-x-3 shrink-0 self-end sm:self-auto">
-                          {getStatusBadge(testResult)}
-                          <button
-                            onClick={() => handleTestAction(item)}
-                            disabled={testResult?.status === 'loading'}
-                            className="p-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl shadow-lg shadow-indigo-600/10 transition-all cursor-pointer"
-                            title="Execute Test Request"
-                          >
-                            <Play className="h-4 w-4 fill-white" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+        <PageWrapper>
+          {/* Header */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+            <div>
+              <h1 className="text-2xl font-bold text-foreground tracking-tight">Resource Action Center</h1>
+              <p className="text-muted-foreground text-sm mt-1">
+                Verify your active permissions by dispatching authenticated requests to dummy system APIs.
+              </p>
             </div>
-          ))}
-        </div>
+            <Button onClick={handleReset} variant="outline" className="self-start md:self-auto gap-2">
+              <RotateCcw className="h-4 w-4" />
+              Reset Console
+            </Button>
+          </div>
+
+          {/* Action Grids */}
+          <motion.div
+            variants={staggerContainer}
+            initial="initial"
+            animate="animate"
+            className="grid grid-cols-1 xl:grid-cols-2 gap-5"
+          >
+            {resourceCategories.map((category, catIdx) => (
+              <motion.div key={category.title} variants={fadeInUp}>
+                <Card className="h-full">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-base">{category.title}</CardTitle>
+                    <CardDescription className="text-xs">{category.description}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-2.5">
+                    {category.actions.map((item) => {
+                      const testResult = results[item.action];
+                      return (
+                        <div
+                          key={item.action}
+                          className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-background/60 border border-border/50 hover:border-border rounded-xl transition-all gap-3"
+                        >
+                          <div className="overflow-hidden pr-2">
+                            <div className="flex items-center gap-2">
+                              <Badge variant={getMethodBadgeVariant(item.method) as any} className="text-[9px] font-mono">
+                                {item.method}
+                              </Badge>
+                              <span className="text-sm font-medium text-foreground">{item.name}</span>
+                            </div>
+                            <div className="text-[11px] font-mono text-muted-foreground mt-1 select-all">{item.action}</div>
+                          </div>
+
+                          <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-auto">
+                            <AnimatePresence mode="wait">
+                              <motion.div
+                                key={testResult?.status || 'idle'}
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.9 }}
+                                transition={{ duration: 0.15 }}
+                              >
+                                {getStatusBadge(testResult)}
+                              </motion.div>
+                            </AnimatePresence>
+                            <Button
+                              onClick={() => handleTestAction(item)}
+                              disabled={testResult?.status === 'loading'}
+                              size="icon"
+                              className="h-8 w-8 rounded-lg"
+                              title="Execute Test Request"
+                            >
+                              <Play className="h-3.5 w-3.5 fill-current" />
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </motion.div>
+        </PageWrapper>
       </div>
     </div>
   );

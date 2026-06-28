@@ -1,1 +1,88 @@
 @import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * ============================================
+ *  SecureIAM Design System — CSS Custom Props
+ *  Theme: Obsidian Dark with Violet accents
+ * ============================================
+ */
+
+@theme inline {
+  /* Radii */
+  --radius: 0.625rem;
+
+  /* Colors — Dark mode palette */
+  --color-background: oklch(0.145 0.014 285.82);
+  --color-foreground: oklch(0.985 0.002 247.86);
+  --color-card: oklch(0.17 0.014 285.82);
+  --color-card-foreground: oklch(0.985 0.002 247.86);
+  --color-popover: oklch(0.17 0.014 285.82);
+  --color-popover-foreground: oklch(0.985 0.002 247.86);
+  --color-primary: oklch(0.62 0.18 270);
+  --color-primary-foreground: oklch(0.985 0.002 247.86);
+  --color-secondary: oklch(0.22 0.014 285.82);
+  --color-secondary-foreground: oklch(0.985 0.002 247.86);
+  --color-muted: oklch(0.22 0.014 285.82);
+  --color-muted-foreground: oklch(0.556 0.019 247.86);
+  --color-accent: oklch(0.22 0.02 280);
+  --color-accent-foreground: oklch(0.985 0.002 247.86);
+  --color-destructive: oklch(0.55 0.2 27);
+  --color-destructive-foreground: oklch(0.985 0.002 247.86);
+  --color-border: oklch(0.26 0.014 285.82);
+  --color-input: oklch(0.26 0.014 285.82);
+  --color-ring: oklch(0.62 0.18 270);
+  --color-chart-1: oklch(0.62 0.18 270);
+  --color-chart-2: oklch(0.6 0.16 165);
+  --color-chart-3: oklch(0.55 0.2 27);
+  --color-chart-4: oklch(0.65 0.15 85);
+  --color-chart-5: oklch(0.7 0.14 140);
+
+  /* Sidebar-specific colors */
+  --color-sidebar: oklch(0.155 0.014 285.82);
+  --color-sidebar-foreground: oklch(0.985 0.002 247.86);
+  --color-sidebar-primary: oklch(0.62 0.18 270);
+  --color-sidebar-primary-foreground: oklch(0.985 0.002 247.86);
+  --color-sidebar-accent: oklch(0.22 0.02 280);
+  --color-sidebar-accent-foreground: oklch(0.985 0.002 247.86);
+  --color-sidebar-border: oklch(0.26 0.014 285.82);
+  --color-sidebar-ring: oklch(0.62 0.18 270);
+}
+
+/*
+ * ============================================
+ *  Base Styles
+ * ============================================
+ */
+
+* {
+  border-color: var(--color-border);
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: oklch(0.3 0.01 285);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.4 0.01 285);
+}
