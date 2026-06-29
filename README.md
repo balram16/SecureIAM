@@ -131,25 +131,25 @@ graph TD
     DelegationCheck["validateDelegationBypass (Policy Service)"]
 
     %% Flow Connections
-    Client -->| "1. HTTP API Request" | Router
-    Router -->| "2. Authentication" | AuthMid
-    AuthMid -->| "Success: req.user attached" | ZodMid
-    AuthMid -->| "Failure: 401 Unauthorized" | Client
+    Client -- "1. HTTP API Request" --> Router
+    Router -- "2. Authentication" --> AuthMid
+    AuthMid -- "Success: req.user attached" --> ZodMid
+    AuthMid -- "Failure: 401 Unauthorized" --> Client
     
-    ZodMid -->| "3. Input Validation" | IAMMid
-    ZodMid -->| "Failure: 400 Bad Request" | Client
+    ZodMid -- "3. Input Validation" --> IAMMid
+    ZodMid -- "Failure: 400 Bad Request" --> Client
     
-    IAMMid -->| "4. Granular Authorization" | EvalEngine
-    EvalEngine -->| "Denied: 403 Forbidden" | Client
-    EvalEngine -->| "Allowed: Next()" | DbPrisma
+    IAMMid -- "4. Granular Authorization" --> EvalEngine
+    EvalEngine -- "Denied: 403 Forbidden" --> Client
+    EvalEngine -- "Allowed: Next()" --> DbPrisma
     
     %% Write mutations check
-    DbPrisma -->| "5. If Create/Update Policy" | DelegationCheck
-    DelegationCheck -->| "Prevented: 403 Forbidden" | Client
-    DelegationCheck -->| "Valid Delegation" | DbPrisma
+    DbPrisma -- "5. If Create/Update Policy" --> DelegationCheck
+    DelegationCheck -- "Prevented: 403 Forbidden" --> Client
+    DelegationCheck -- "Valid Delegation" --> DbPrisma
     
-    DbPrisma -->| "6. Query execution" | DbPostgres
-    DbPostgres -->| "7. Query Result" | Client
+    DbPrisma -- "6. Query execution" --> DbPostgres
+    DbPostgres -- "7. Query Result" --> Client
 ```
 
 ### Policy Evaluation Flow
@@ -185,4 +185,70 @@ flowchart TD
     CheckBoundaryAllow -->|No| DenyRequest
     
     CheckBoundaryAllow -->|Yes| AllowRequest
+```
+
+### Database Entity Relationship Diagram (ERD)
+
+The PostgreSQL database models relations through explicit mapping tables. Foreign key lookups are optimized using custom secondary indexing.
+
+```mermaid
+erDiagram
+    users {
+        string id PK
+        string name
+        string email UK
+        string passwordHash
+        boolean isRoot
+        string refreshToken
+        datetime createdAt
+        datetime updatedAt
+    }
+    groups {
+        string id PK
+        string name UK
+        string description
+        datetime createdAt
+        datetime updatedAt
+    }
+    policies {
+        string id PK
+        string name UK
+        string description
+        enum type "MANAGED | INLINE"
+        json statements
+        datetime createdAt
+        datetime updatedAt
+    }
+    user_group_memberships {
+        string userId PK, FK
+        string groupId PK, FK
+        datetime addedAt
+    }
+    group_policy_attachments {
+        string groupId PK, FK
+        string policyId PK, FK
+        datetime attachedAt
+    }
+    user_policy_attachments {
+        string userId PK, FK
+        string policyId PK, FK
+        datetime attachedAt
+    }
+    user_boundaries {
+        string userId PK, FK, UK
+        string policyId FK
+        datetime setAt
+    }
+
+    users ||--o{ user_group_memberships : "has memberships"
+    groups ||--o{ user_group_memberships : "contains users"
+    
+    groups ||--o{ group_policy_attachments : "has attached policies"
+    policies ||--o{ group_policy_attachments : "attached to groups"
+    
+    users ||--o{ user_policy_attachments : "has direct policies"
+    policies ||--o{ user_policy_attachments : "attached to users"
+    
+    users ||--o| user_boundaries : "enforces boundary"
+    policies ||--o{ user_boundaries : "acts as boundary"
 ```
