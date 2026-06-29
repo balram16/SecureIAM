@@ -64,6 +64,7 @@ model UserGroupMembership {
   group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   @@id([userId, groupId])
+  @@index([groupId])
   @@map("user_group_memberships")
 }
 
@@ -76,6 +77,7 @@ model GroupPolicyAttachment {
   policy Policy @relation(fields: [policyId], references: [id], onDelete: Cascade)
 
   @@id([groupId, policyId])
+  @@index([policyId])
   @@map("group_policy_attachments")
 }
 
@@ -88,6 +90,7 @@ model UserPolicyAttachment {
   policy Policy @relation(fields: [policyId], references: [id], onDelete: Cascade)
 
   @@id([userId, policyId])
+  @@index([policyId])
   @@map("user_policy_attachments")
 }
 
@@ -99,5 +102,6 @@ model UserBoundary {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   policy Policy @relation(fields: [policyId], references: [id], onDelete: Cascade)
 
+  @@index([policyId])
   @@map("user_boundaries")
 }

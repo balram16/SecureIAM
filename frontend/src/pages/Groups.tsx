@@ -209,7 +209,7 @@ const Groups = () => {
     (u.name.toLowerCase().includes(userSearchText.toLowerCase()) || u.email.toLowerCase().includes(userSearchText.toLowerCase()))
   );
 
-  const currentPolicyIds = selectedGroup?.policies?.map((p: any) => p.policy.id) || [];
+  const currentPolicyIds = selectedGroup?.policies?.map((p: any) => p.id) || [];
   const attachablePolicies = allPolicies.filter(p =>
     !currentPolicyIds.includes(p.id) &&
     p.name.toLowerCase().includes(policySearchText.toLowerCase())
@@ -610,19 +610,24 @@ const Groups = () => {
                     ) : (
                       selectedGroup.policies.map((p: any) => (
                         <motion.div
-                          key={p.policy.id}
+                          key={p.id}
                           initial={{ opacity: 0, x: -8 }}
                           animate={{ opacity: 1, x: 0 }}
                           className="flex items-center justify-between p-3 bg-background/60 border border-border/50 hover:border-border rounded-xl transition-all"
                         >
                           <div className="overflow-hidden pr-2">
-                            <div className="font-medium text-xs text-foreground truncate">{p.policy.name}</div>
-                            <div className="text-[10px] text-muted-foreground mt-0.5 truncate">{p.policy.description || 'No description.'}</div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-xs text-foreground truncate">{p.name}</span>
+                              <Badge variant={p.type === 'MANAGED' ? 'secondary' : 'outline'} className="text-[9px] px-1.5 py-0 shrink-0 font-semibold tracking-wider text-[10px]">
+                                {p.type}
+                              </Badge>
+                            </div>
+                            <div className="text-[10px] text-muted-foreground mt-0.5 truncate">{p.description || 'No description.'}</div>
                           </div>
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleDetachPolicy(p.policy.id)}
+                            onClick={() => handleDetachPolicy(p.id)}
                             className="h-7 w-7 text-muted-foreground hover:text-destructive"
                             title="Detach policy"
                           >

@@ -230,7 +230,7 @@ const Users = () => {
                         <TableHead className="pl-6">User details</TableHead>
                         <TableHead>Direct policies</TableHead>
                         <TableHead>Groups membership</TableHead>
-                        <TableHead>Permission boundary</TableHead>
+                        <TableHead className="text-center">Permission boundary</TableHead>
                         <TableHead className="pr-6 text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -270,14 +270,15 @@ const Users = () => {
                               <TableCell className="text-sm font-medium text-foreground/80">
                                 {groupCount} {groupCount === 1 ? 'group' : 'groups'}
                               </TableCell>
-                              <TableCell>
+                              <TableCell className="text-center">
                                 {u.boundary === 'yes' ? (
-                                  <Badge variant="default" className="text-[9px] gap-1">
-                                    <ShieldCheck className="h-3 w-3" />
-                                    Enforced
+                                  <Badge variant="success" className="text-[9px] font-bold tracking-wider px-2">
+                                    YES
                                   </Badge>
                                 ) : (
-                                  <span className="text-xs text-muted-foreground">None</span>
+                                  <Badge variant="outline" className="text-[9px] font-bold tracking-wider px-2 text-muted-foreground/60 border-border/40">
+                                    NO
+                                  </Badge>
                                 )}
                               </TableCell>
                               <TableCell className="pr-6 text-right">
@@ -328,10 +329,10 @@ const Users = () => {
                 <div className="xl:col-span-2 flex flex-col min-h-0 space-y-5">
                   
                   {/* Upper: Policies and Boundary */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 shrink-0">
+                  <div className={`grid grid-cols-1 gap-5 shrink-0 ${currentUser?.isRoot ? 'lg:grid-cols-2' : 'lg:grid-cols-1'}`}>
                     
                     {/* Direct Policies */}
-                    <Card className="flex flex-col relative">
+                    <Card className={`flex flex-col relative ${showAttachPolicyDropdown ? 'z-30' : 'z-10'}`}>
                       <CardHeader className="pb-3">
                         <div className="flex items-center justify-between">
                           <CardTitle className="text-sm flex items-center gap-2">
@@ -413,15 +414,15 @@ const Users = () => {
                     </Card>
 
                     {/* Permission Boundary */}
-                    <Card className="flex flex-col relative">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="text-sm flex items-center gap-2">
-                            <Shield className="h-4 w-4 text-primary" />
-                            Permission Boundary
-                          </CardTitle>
+                    {currentUser?.isRoot && (
+                      <Card className={`flex flex-col relative ${showBoundaryDropdown ? 'z-30' : 'z-10'}`}>
+                        <CardHeader className="pb-3">
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="text-sm flex items-center gap-2">
+                              <Shield className="h-4 w-4 text-primary" />
+                              Permission Boundary
+                            </CardTitle>
 
-                          {currentUser?.isRoot && (
                             <div className="relative">
                               <Button
                                 variant="outline"
@@ -469,22 +470,20 @@ const Users = () => {
                                 )}
                               </AnimatePresence>
                             </div>
-                          )}
-                        </div>
-                      </CardHeader>
+                          </div>
+                        </CardHeader>
 
-                      <CardContent className="flex-1 flex flex-col justify-center">
-                        {selectedUser.boundary ? (
-                          <div className="p-3 bg-primary/5 border border-primary/20 rounded-xl text-xs space-y-3">
-                            <div className="flex items-start justify-between">
-                              <div>
-                                <div className="font-bold text-primary flex items-center gap-1">
-                                  <ShieldCheck className="h-4 w-4 shrink-0" />
-                                  <span>Boundary Enforced:</span>
+                        <CardContent className="flex-1 flex flex-col justify-center">
+                          {selectedUser.boundary ? (
+                            <div className="p-3 bg-primary/5 border border-primary/20 rounded-xl text-xs space-y-3">
+                              <div className="flex items-start justify-between">
+                                <div>
+                                  <div className="font-bold text-primary flex items-center gap-1">
+                                    <ShieldCheck className="h-4 w-4 shrink-0" />
+                                    <span>Boundary Enforced:</span>
+                                  </div>
+                                  <div className="text-foreground/80 font-semibold mt-1 font-mono">{selectedUser.boundary.name}</div>
                                 </div>
-                                <div className="text-foreground/80 font-semibold mt-1 font-mono">{selectedUser.boundary.name}</div>
-                              </div>
-                              {currentUser?.isRoot && (
                                 <Button
                                   variant="ghost"
                                   size="icon"
@@ -494,149 +493,132 @@ const Users = () => {
                                 >
                                   <X className="h-4 w-4" />
                                 </Button>
-                              )}
+                              </div>
+                              <p className="text-[10px] text-muted-foreground leading-normal">
+                                This boundary restricts the maximum permission depth allowed for the user, overriding any Allow statements.
+                              </p>
                             </div>
-                            <p className="text-[10px] text-muted-foreground leading-normal">
-                              This boundary restricts the maximum permission depth allowed for the user, overriding any Allow statements.
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="p-4 text-center border border-dashed border-border rounded-xl text-xs text-muted-foreground">
-                            No permission boundary set. User can execute all actions granted by direct or group policies.
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
+                          ) : (
+                            <div className="p-4 text-center border border-dashed border-border rounded-xl text-xs text-muted-foreground">
+                              No permission boundary set. User can execute all actions granted by direct or group policies.
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )}
                   </div>
 
-                  {/* Lower: Effective Permissions Matrix */}
+                  {/* Lower: Group Memberships */}
                   <Card className="flex-1 min-h-0 flex flex-col">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-sm flex items-center gap-2">
-                        <ShieldCheck className="h-4 w-4 text-emerald-400" />
-                        Calculated Effective Permissions Matrix
+                        <UsersIcon className="h-4 w-4 text-primary" />
+                        Group Memberships
+                        <Badge variant="secondary" className="text-[9px]">{selectedUser.groups?.length || 0}</Badge>
                       </CardTitle>
                     </CardHeader>
 
-                    <CardContent className="flex-1 overflow-y-auto space-y-4 pr-1">
-                      {Object.keys(ACTIONS_BY_NAMESPACE).map(namespace => {
-                        const nsActions = ACTIONS_BY_NAMESPACE[namespace];
-                        return (
-                          <motion.div
-                            key={namespace}
-                            initial={{ opacity: 0, y: 8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="p-4 bg-background/60 border border-border/50 rounded-xl space-y-3"
-                          >
-                            <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">{namespace} Actions</h4>
-                            
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                              {nsActions.map(action => {
-                                const calculated = selectedUser.effectivePermissions?.[action] || { allowed: false, source: 'None' };
-                                const isAllowed = calculated.allowed;
-                                return (
-                                  <div
-                                    key={action}
-                                    className={`p-2 rounded-lg border flex items-center justify-between transition-all ${
-                                      isAllowed
-                                        ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400'
-                                        : 'bg-background/40 border-border/40 text-muted-foreground'
-                                    }`}
-                                  >
-                                    <span className="font-mono text-[10px] truncate pr-1" title={action}>
-                                      {action.split(':')[1] || action}
-                                    </span>
+                    <CardContent className="flex-1 overflow-y-auto space-y-2.5 pr-1">
+                      {!selectedUser.groups || selectedUser.groups.length === 0 ? (
+                        <div className="p-8 text-center text-muted-foreground border border-dashed border-border rounded-xl text-sm">
+                          This user is not a member of any groups.
+                        </div>
+                      ) : (
+                        selectedUser.groups.map((g: any) => {
+                          const isExpanded = expandedGroups[g.id] || false;
+                          return (
+                            <div key={g.id} className="bg-background/60 border border-border/50 rounded-xl overflow-hidden">
+                              {/* Accordion trigger */}
+                              <button
+                                onClick={() => toggleGroupAccordion(g.id)}
+                                className="w-full flex items-center justify-between p-3 hover:bg-muted/30 text-left transition-colors cursor-pointer"
+                              >
+                                <div className="overflow-hidden pr-2">
+                                  <span className="text-xs font-bold text-foreground block truncate">{g.name}</span>
+                                  <span className="text-[10px] text-muted-foreground mt-0.5 block truncate">
+                                    {g.policies?.length || 0} Attached {g.policies?.length === 1 ? 'policy' : 'policies'}
+                                  </span>
+                                </div>
+                                {isExpanded ? (
+                                  <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                                )}
+                              </button>
 
-                                    <div className="flex items-center gap-1 shrink-0">
-                                      {isAllowed ? (
-                                        <Check className="h-3 w-3 text-emerald-400 shrink-0" />
+                              {/* Expansion panel */}
+                              <AnimatePresence>
+                                {isExpanded && (
+                                  <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.2 }}
+                                    className="overflow-hidden"
+                                  >
+                                    <div className="p-3 bg-background border-t border-border/40 space-y-2">
+                                      <h5 className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Group Policies</h5>
+                                      {g.policies && g.policies.length > 0 ? (
+                                        <div className="space-y-1.5">
+                                          {g.policies.map((p: any) => (
+                                            <div key={p.id} className="p-2 bg-muted/20 border border-border/40 rounded-lg text-[11px] font-medium text-muted-foreground">
+                                              {p.name}
+                                            </div>
+                                          ))}
+                                        </div>
                                       ) : (
-                                        <X className="h-3 w-3 text-muted-foreground/40 shrink-0" />
+                                        <p className="text-[10px] text-muted-foreground/60 italic">No policies attached to group.</p>
                                       )}
-                                      <span className="text-[9px] text-muted-foreground uppercase tracking-widest font-bold">
-                                        {calculated.source === 'BoundaryBlock' ? 'Blocked' : calculated.source}
-                                      </span>
                                     </div>
-                                  </div>
-                                );
-                              })}
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
                             </div>
-                          </motion.div>
-                        );
-                      })}
+                          );
+                        })
+                      )}
                     </CardContent>
                   </Card>
                 </div>
 
-                {/* RIGHT COLUMN: GROUP MEMBERSHIPS */}
+                {/* RIGHT COLUMN: Calculated Effective Permissions */}
                 <Card className="flex flex-col min-h-0">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm flex items-center gap-2">
-                      <UsersIcon className="h-4 w-4 text-primary" />
-                      Group Memberships
-                      <Badge variant="secondary" className="text-[9px]">{selectedUser.groups?.length || 0}</Badge>
+                      <ShieldCheck className="h-4 w-4 text-emerald-400" />
+                      Effective Permissions Summary
                     </CardTitle>
                   </CardHeader>
 
-                  <CardContent className="flex-1 overflow-y-auto space-y-2.5 pr-1">
-                    {!selectedUser.groups || selectedUser.groups.length === 0 ? (
-                      <div className="p-8 text-center text-muted-foreground border border-dashed border-border rounded-xl text-sm">
-                        This user is not a member of any groups.
-                      </div>
-                    ) : (
-                      selectedUser.groups.map((g: any) => {
-                        const isExpanded = expandedGroups[g.id] || false;
-                        return (
-                          <div key={g.id} className="bg-background/60 border border-border/50 rounded-xl overflow-hidden">
-                            {/* Accordion trigger */}
-                            <button
-                              onClick={() => toggleGroupAccordion(g.id)}
-                              className="w-full flex items-center justify-between p-3 hover:bg-muted/30 text-left transition-colors cursor-pointer"
-                            >
-                              <div className="overflow-hidden pr-2">
-                                <span className="text-xs font-bold text-foreground block truncate">{g.name}</span>
-                                <span className="text-[10px] text-muted-foreground mt-0.5 block truncate">
-                                  {g.policies?.length || 0} Attached {g.policies?.length === 1 ? 'policy' : 'policies'}
-                                </span>
-                              </div>
-                              {isExpanded ? (
-                                <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
-                              ) : (
-                                <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-                              )}
-                            </button>
-
-                            {/* Expansion panel */}
-                            <AnimatePresence>
-                              {isExpanded && (
-                                <motion.div
-                                  initial={{ height: 0, opacity: 0 }}
-                                  animate={{ height: 'auto', opacity: 1 }}
-                                  exit={{ height: 0, opacity: 0 }}
-                                  transition={{ duration: 0.2 }}
-                                  className="overflow-hidden"
-                                >
-                                  <div className="p-3 bg-background border-t border-border/40 space-y-2">
-                                    <h5 className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Group Policies</h5>
-                                    {g.policies && g.policies.length > 0 ? (
-                                      <div className="space-y-1.5">
-                                        {g.policies.map((p: any) => (
-                                          <div key={p.id} className="p-2 bg-muted/20 border border-border/40 rounded-lg text-[11px] font-medium text-muted-foreground">
-                                            {p.name}
-                                          </div>
-                                        ))}
-                                      </div>
-                                    ) : (
-                                      <p className="text-[10px] text-muted-foreground/60 italic">No policies attached to group.</p>
-                                    )}
-                                  </div>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
+                  <CardContent className="flex-1 overflow-y-auto space-y-4 pr-1">
+                    {Object.keys(ACTIONS_BY_NAMESPACE).map(namespace => {
+                      const nsActions = ACTIONS_BY_NAMESPACE[namespace];
+                      return (
+                        <div key={namespace} className="space-y-2">
+                          <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-1">
+                            {namespace} Actions
+                          </h4>
+                          <div className="bg-background/40 border border-border/40 rounded-xl p-2 space-y-1.5">
+                            {nsActions.map(action => {
+                              const isAllowed = selectedUser.effectivePermissions?.[action] === true;
+                              return (
+                                <div key={action} className="flex items-center justify-between py-1.5 px-2 hover:bg-muted/10 rounded-lg transition-colors">
+                                  <span className="font-mono text-[10px] text-foreground/90 truncate mr-2" title={action}>
+                                    {action.split(':')[1] || action}
+                                  </span>
+                                  <Badge
+                                    variant={isAllowed ? "success" : "destructive"}
+                                    className="text-[8px] font-bold tracking-wider px-1.5 py-0.5 shrink-0"
+                                  >
+                                    {isAllowed ? "ALLOWED" : "DENIED"}
+                                  </Badge>
+                                </div>
+                              );
+                            })}
                           </div>
-                        );
-                      })
-                    )}
+                        </div>
+                      );
+                    })}
                   </CardContent>
                 </Card>
               </div>
