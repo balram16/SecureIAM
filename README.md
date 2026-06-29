@@ -176,11 +176,7 @@ flowchart TD
     
     CheckBoundaryActive -->|No| AllowRequest["Return TRUE (Allowed)"]
     
-    CheckBoundaryActive -->|Yes| CheckBoundaryDeny{"Explicit DENY in Boundary statement?"}
-    
-    CheckBoundaryDeny -->|Yes| DenyRequest
-    
-    CheckBoundaryDeny -->|No| CheckBoundaryAllow{"Explicit ALLOW in Boundary statement?"}
+    CheckBoundaryActive -->|Yes| CheckBoundaryAllow{"Explicit ALLOW in Boundary statement?"}
     
     CheckBoundaryAllow -->|No| DenyRequest
     
