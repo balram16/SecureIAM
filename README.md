@@ -102,4 +102,87 @@ Create a `.env` file inside the `backend/` directory. The following variables mu
 
 ---
 
+## Running Verification / Automated Integration Tests
 
+To run the complete automated integration test suite validating all custom permission policies, boundaries evaluations, and delegation bypass logic:
+```bash
+# Execute this script from the backend directory:
+node scratch/verify_iam.js
+```
+
+---
+
+## System Architecture
+
+The following diagram illustrates how a client request flows through the validation, authentication, and granular authorization checks before interacting with the database:
+
+```mermaid
+graph TD
+    %% Define Nodes
+    Client["React Client (Vite + TS)"]
+    Router["Express Router (Backend)"]
+    AuthMid["authMiddleware (JWT Validation)"]
+    ZodMid["validateMiddleware (Zod Inputs Schema)"]
+    IAMMid["iamMiddleware (Action Check)"]
+    EvalEngine["evaluatePermission (Policy Engine)"]
+    DbPrisma["Prisma ORM Client"]
+    DbPostgres[(PostgreSQL Database)]
+    
+    DelegationCheck["validateDelegationBypass (Policy Service)"]
+
+    %% Flow Connections
+    Client -->| "1. HTTP API Request" | Router
+    Router -->| "2. Authentication" | AuthMid
+    AuthMid -->| "Success: req.user attached" | ZodMid
+    AuthMid -->| "Failure: 401 Unauthorized" | Client
+    
+    ZodMid -->| "3. Input Validation" | IAMMid
+    ZodMid -->| "Failure: 400 Bad Request" | Client
+    
+    IAMMid -->| "4. Granular Authorization" | EvalEngine
+    EvalEngine -->| "Denied: 403 Forbidden" | Client
+    EvalEngine -->| "Allowed: Next()" | DbPrisma
+    
+    %% Write mutations check
+    DbPrisma -->| "5. If Create/Update Policy" | DelegationCheck
+    DelegationCheck -->| "Prevented: 403 Forbidden" | Client
+    DelegationCheck -->| "Valid Delegation" | DbPrisma
+    
+    DbPrisma -->| "6. Query execution" | DbPostgres
+    DbPostgres -->| "7. Query Result" | Client
+```
+
+### Policy Evaluation Flow
+
+Below is the decision tree showing how `evaluatePermission` handles identity-based policies and permission boundary validation:
+
+```mermaid
+flowchart TD
+    Start(["Start Evaluation"]) --> CheckRoot{"Is User Root?"}
+    
+    CheckRoot -->|Yes| AllowRoot["Return TRUE (Bypass all checks)"]
+    
+    CheckRoot -->|No| CollectStatements["Collect all effective policy statements (Direct + Groups)"]
+    
+    CollectStatements --> CheckDeny{"Any Explicit DENY for requested action?"}
+    
+    CheckDeny -->|Yes| DenyRequest["Return FALSE (Denied)"]
+    
+    CheckDeny -->|No| CheckAllow{"Any Explicit ALLOW for requested action?"}
+    
+    CheckAllow -->|No| DenyRequest
+    
+    CheckAllow -->|Yes| CheckBoundaryActive{"Permission Boundary Set?"}
+    
+    CheckBoundaryActive -->|No| AllowRequest["Return TRUE (Allowed)"]
+    
+    CheckBoundaryActive -->|Yes| CheckBoundaryDeny{"Explicit DENY in Boundary statement?"}
+    
+    CheckBoundaryDeny -->|Yes| DenyRequest
+    
+    CheckBoundaryDeny -->|No| CheckBoundaryAllow{"Explicit ALLOW in Boundary statement?"}
+    
+    CheckBoundaryAllow -->|No| DenyRequest
+    
+    CheckBoundaryAllow -->|Yes| AllowRequest
+```
