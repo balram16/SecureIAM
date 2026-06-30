@@ -110,6 +110,22 @@ const NON_IAM_GROUPS: Record<Exclude<Category, 'IAM'>, { name: string; actions: 
   ]
 };
 
+const parseAttachmentError = (errorMsg: string) => {
+  if (!errorMsg.includes('attached to')) return null;
+  
+  const usersMatch = errorMsg.match(/users:\s*\[([^\]]+)\]/i);
+  const groupsMatch = errorMsg.match(/groups:\s*\[([^\]]+)\]/i);
+  
+  const users = usersMatch ? usersMatch[1].split(',').map(s => s.trim()) : [];
+  const groups = groupsMatch ? groupsMatch[1].split(',').map(s => s.trim()) : [];
+  
+  if (users.length === 0 && groups.length === 0) {
+    return null;
+  }
+  
+  return { users, groups };
+};
+
 const Policies = () => {
   const queryClient = useQueryClient();
   const [view, setView] = useState<'list' | 'create' | 'edit' | 'detail'>('list');
@@ -565,12 +581,12 @@ const Policies = () => {
                         <FileText className="h-4 w-4 text-primary" />
                         Policy Document JSON
                       </CardTitle>
-                      <div className="flex gap-2">
+            <div className="flex gap-2">
                         <Button variant="outline" size="sm" onClick={() => handleEditOpen(selectedPolicy)} className="gap-1.5 h-7 text-xs">
                           <Edit3 className="h-3 w-3" />
                           Edit
                         </Button>
-                        <Button variant="outline" size="sm" onClick={() => setShowDeleteConfirm(true)} className="gap-1.5 h-7 text-xs text-destructive hover:text-destructive border-destructive/20 hover:bg-destructive/10">
+                        <Button variant="outline" size="sm" onClick={() => { setError(''); setShowDeleteConfirm(true); }} className="gap-1.5 h-7 text-xs text-destructive hover:text-destructive border-destructive/20 hover:bg-destructive/10">
                           <Trash2 className="h-3 w-3" />
                           Delete
                         </Button>
@@ -651,14 +667,71 @@ const Policies = () => {
                       initial="initial"
                       animate="animate"
                       exit="exit"
-                      className="bg-card border border-border rounded-2xl p-6 max-w-md w-full shadow-2xl"
+                      className="bg-card border border-border rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4"
                     >
-                      <h3 className="text-lg font-bold text-foreground mb-2">Delete Access Policy</h3>
-                      <p className="text-sm text-muted-foreground mb-6">
+                      <h3 className="text-lg font-bold text-foreground">Delete Access Policy</h3>
+                      
+                      {error && (() => {
+                         const attachments = parseAttachmentError(error);
+                         if (attachments) {
+                           return (
+                             <div className="p-4 bg-destructive/10 border border-destructive/20 text-destructive rounded-xl space-y-3 text-xs">
+                               <div className="flex items-center gap-2 font-bold text-sm">
+                                 <AlertCircle className="h-4.5 w-4.5 text-destructive shrink-0" />
+                                 <span>Policy In Use</span>
+                               </div>
+                               <p className="text-[11px] text-muted-foreground leading-normal">
+                                 This managed policy is currently active and cannot be deleted until it is detached from:
+                               </p>
+                               
+                               <div className="space-y-2 pt-1">
+                                 {attachments.users.length > 0 && (
+                                   <div className="flex flex-wrap items-center gap-1.5">
+                                     <span className="font-semibold text-foreground/80 mr-1">Users:</span>
+                                     {attachments.users.map(u => (
+                                       <Badge key={u} variant="outline" className="bg-background border-destructive/25 text-destructive text-[10px] font-mono px-2 py-0.5">
+                                         {u}
+                                       </Badge>
+                                     ))}
+                                   </div>
+                                 )}
+                                 {attachments.groups.length > 0 && (
+                                   <div className="flex flex-wrap items-center gap-1.5">
+                                     <span className="font-semibold text-foreground/80 mr-1">Groups:</span>
+                                     {attachments.groups.map(g => (
+                                       <Badge key={g} variant="outline" className="bg-background border-destructive/25 text-destructive text-[10px] font-mono px-2 py-0.5">
+                                         {g}
+                                       </Badge>
+                                     ))}
+                                   </div>
+                                 )}
+                               </div>
+                               
+                               <p className="text-[10px] font-bold text-destructive/80 pt-1.5 border-t border-destructive/10">
+                                 ➔ Detach the policy from these entities first and try again.
+                               </p>
+                             </div>
+                           );
+                         }
+                         
+                         return (
+                           <div className="p-3 bg-destructive/10 border border-destructive/20 text-destructive rounded-xl flex items-start gap-2.5 text-xs">
+                             <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                             <div className="flex-1">
+                               <span className="font-semibold">Error:</span> {error}
+                             </div>
+                             <button type="button" onClick={() => setError('')} className="text-muted-foreground hover:text-foreground">
+                               <X className="h-3.5 w-3.5" />
+                             </button>
+                           </div>
+                         );
+                       })()}
+
+                      <p className="text-sm text-muted-foreground">
                         Are you sure you want to delete policy <span className="text-foreground font-semibold">{selectedPolicy.name}</span>? This action is permanent and will detach it from all groups or users.
                       </p>
-                      <div className="flex justify-end gap-3">
-                        <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
+                      <div className="flex justify-end gap-3 pt-2">
+                        <Button variant="outline" onClick={() => { setError(''); setShowDeleteConfirm(false); }}>
                           Cancel
                         </Button>
                         <Button variant="destructive" onClick={handleDelete} disabled={loading}>
@@ -671,7 +744,6 @@ const Policies = () => {
               </AnimatePresence>
             </div>
           )}
-
           {/* CREATE / EDIT VIEW (POLICY BUILDER) */}
           {(view === 'create' || view === 'edit') && (
             <form onSubmit={handleSave} className="flex-1 flex flex-col min-h-0">

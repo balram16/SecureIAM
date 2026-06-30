@@ -295,7 +295,7 @@ export const deletePolicy = async (requestingUser: UserWithPolicies, id: string)
     if ((attachedUsersCount > 0 || attachedGroupsCount > 0) && !requestingUser.isRoot) {
       const attachedUserNames = policy.users.map((u: any) => u.user.name).join(', ');
       const attachedGroupNames = policy.groups.map((g: any) => g.group.name).join(', ');
-      
+
       let attachmentDetails = '';
       if (attachedUsersCount > 0) attachmentDetails += `users: [${attachedUserNames}]`;
       if (attachedGroupsCount > 0) {
@@ -303,7 +303,7 @@ export const deletePolicy = async (requestingUser: UserWithPolicies, id: string)
         attachmentDetails += `groups: [${attachedGroupNames}]`;
       }
 
-      const error: any = new Error(`Managed Policy is currently attached and cannot be deleted. Attached to ${attachmentDetails}.`);
+      const error: any = new Error(`This managed policy cannot be deleted because it is currently attached to ${attachmentDetails}. Detach it first and try again.`);
       error.statusCode = 400;
       throw error;
     }
