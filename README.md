@@ -19,7 +19,6 @@ An enterprise-grade, self-administered Identity and Access Management (IAM) cons
 
 ## 🛠 Technology Stack
 
-This application is built as a complete TypeScript monorepo splitting into decoupled frontend and backend services:
 
 ### Frontend Layer
 - **Framework**: [React](https://react.dev/) (Vite-driven build environment)
@@ -27,13 +26,14 @@ This application is built as a complete TypeScript monorepo splitting into decou
 - **State & Queries**: [TanStack React Query](https://tanstack.com/query/latest) for efficient server-state sync
 - **Styling**: [Tailwind CSS](https://tailwindcss.com/) for a sleek, responsive, and dark-themed UI console
 - **Animations**: [Framer Motion](https://www.framer.com/motion/) for premium micro-interactions and smooth tab transitions
+- **HTTP Client**: [Axios](https://axios-http.com/) configured with request/response interceptors for silent JWT refresh token rotation
 
 ### Backend Layer
 - **Runtime**: [Node.js](https://nodejs.org/) & [Express](https://expressjs.com/) RESTful Web Services
 - **ORM & Client**: [Prisma Client](https://www.prisma.io/) database access toolkit
 - **Schema & Validation**: [Zod](https://zod.dev/) for payload runtime schema validations
 - **Security**: [bcrypt](https://github.com/kelektiv/node.bcrypt.js) for password hashing and [JSON Web Tokens (JWT)](https://jwt.io/) for stateless request authorization
-- **Development Tooling**: [tsx](https://github.com/privatenumber/tsx) for fast TypeScript execution and hot reloading
+
 
 ### Database Layer
 - **Engine**: [PostgreSQL](https://www.postgresql.org/) for storing relational entities (Users, Groups, Policies, Boundaries, Memberships)
