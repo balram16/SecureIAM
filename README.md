@@ -4,6 +4,19 @@ An enterprise-grade, self-administered Identity and Access Management (IAM) cons
 
 ---
 
+## 🌟 Key Features
+
+* **Self-Administered Engine**: Administrative actions (managing users, groups, and policies) are governed dynamically by the same IAM middleware protecting normal business resources.
+* **Implicit & Explicit Deny Precedence**: A strict security checker where explicit `Deny` statements override any `Allow` configuration, matching AWS IAM standards.
+* **Permission Boundaries**: Allows root users to enforce boundary caps on members, defining a hard ceiling on the maximum effective privileges they can hold.
+* **Delegation Bypass Prevention**: Protects the system from privilege escalation by rejecting policy creation, updates, or attachments that grant privileges the author does not currently possess.
+* **Interactive Statement Builder**: A guided, form-driven editor with dropdowns for whitelisted actions and toggles for effects (no raw JSON typing required).
+* **Live JSON Preview**: Real-time syntax compiler reflecting custom statement builds instantly in a JSON preview pane.
+* **Effective Permissions Summary**: A user-specific resolved dashboard displaying calculated Allow/Deny states for all 29 valid system actions.
+* **Database Referential Integrity**: Cascade deletion parameters auto-clearing memberships, identity policy assignments, and boundaries on target resource removal.
+
+---
+
 ## 🛠 Technology Stack
 
 This application is built as a complete TypeScript monorepo splitting into decoupled frontend and backend services:
@@ -122,6 +135,54 @@ Create a `.env` file inside the `backend/` directory. The following variables mu
    ```
    The React client console runs locally at: `http://localhost:5173`
 
+---
+
+## 📂 Project Directory Structure
+
+```text
+SecureIAM/
+├── backend/                       # Node.js & Express API Server
+│   ├── prisma/                    # Prisma DB schema & seed scripts
+│   │   ├── schema.prisma          # Database models (PostgreSQL)
+│   │   └── seed.ts                # TypeScript seeding file
+│   ├── src/
+│   │   ├── config/                # Constants & database configuration
+│   │   ├── features/              # Feature-based modular architecture
+│   │   │   ├── auth/              # JWT Auth (Login/Register/Logout)
+│   │   │   ├── group/             # Group management & policy attachments
+│   │   │   ├── policy/            # Policy creation & delegation bypass checks
+│   │   │   ├── user/              # User profiles & boundary settings
+│   │   │   └── reports/           # Business logic resource routes (Dummy endpoints)
+│   │   ├── middleware/            # JWT validator & IAM check middleware
+│   │   ├── shared/                # Response helpers & permission engine
+│   │   ├── types/                 # Express types declarations
+│   │   ├── app.ts                 # Express middleware configuration
+│   │   └── server.ts              # Express server startup entry point
+│   ├── package.json
+│   └── tsconfig.json
+│
+├── frontend/                      # React SPA Client (Vite)
+│   ├── src/
+│   │   ├── components/            # Shared UI components (Sidebar)
+│   │   ├── context/               # Global Authentication context provider
+│   │   ├── pages/                 # Console view layouts
+│   │   │   ├── Login.tsx          # Credentials entry screen
+│   │   │   ├── Register.tsx       # Onboarding screen
+│   │   │   ├── Dashboard.tsx      # Resource test console
+│   │   │   ├── Policies.tsx       # Policy builder & table list
+│   │   │   ├── Groups.tsx         # Group list & membership details
+│   │   │   └── Users.tsx          # Member profile & boundary controls
+│   │   ├── services/              # Axios API setup & interceptors
+│   │   ├── types/                 # Frontend typescript interface types
+│   │   ├── App.tsx                # Client routing & wrapper setup
+│   │   └── main.tsx               # Client DOM insertion entry point
+│   ├── package.json
+│   ├── tailwind.config.js
+│   ├── tsconfig.json
+│   └── vercel.json                # SPA rewrites config for Vercel hosting
+│
+└── README.md                      # Setup & architecture overview
+```
 
 ---
 
