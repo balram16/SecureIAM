@@ -40,10 +40,8 @@ const Sidebar = () => {
 
   return (
     <motion.div
-      initial={{ x: -20, opacity: 0 }}
+      initial={false}
       animate={{ 
-        x: 0, 
-        opacity: 1,
         width: isCollapsed ? 72 : 260
       }}
       transition={{ type: 'spring', stiffness: 220, damping: 26 }}
@@ -92,11 +90,6 @@ const Sidebar = () => {
         {/* Navigation Links */}
         <nav className="p-3 space-y-1 mt-2">
           {/* Dashboard */}
-          <motion.div
-            initial={{ opacity: 0, x: -12 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.05, duration: 0.3 }}
-          >
             <Link
               to="/dashboard"
               className={`relative flex items-center py-2.5 rounded-xl transition-all duration-300 group text-[13px] font-medium ${
@@ -133,7 +126,6 @@ const Sidebar = () => {
                 )}
               </AnimatePresence>
             </Link>
-          </motion.div>
 
           {/* IAM Console Section */}
           {isCollapsed ? (

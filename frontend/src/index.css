@@ -1,11 +1,9 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:is(.dark *));
-
 /*
  * ============================================
  *  SecureIAM Design System — CSS Custom Props
- *  Theme: Obsidian Dark with Violet accents
+ *  Theme: Obsidian Light with Violet accents
  * ============================================
  */
 
@@ -13,41 +11,45 @@
   /* Radii */
   --radius: 0.625rem;
 
-  /* Colors — Dark mode palette */
-  --color-background: oklch(0.145 0.014 285.82);
-  --color-foreground: oklch(0.985 0.002 247.86);
-  --color-card: oklch(0.17 0.014 285.82);
-  --color-card-foreground: oklch(0.985 0.002 247.86);
-  --color-popover: oklch(0.17 0.014 285.82);
-  --color-popover-foreground: oklch(0.985 0.002 247.86);
-  --color-primary: oklch(0.62 0.18 270);
+  /* Colors — Obsidian Light palette */
+  --color-background: oklch(0.99 0.003 285);
+  --color-foreground: oklch(0.20 0.012 285);
+  --color-card: oklch(1.0 0 0);
+  --color-card-foreground: oklch(0.20 0.012 285);
+  --color-popover: oklch(1.0 0 0);
+  --color-popover-foreground: oklch(0.20 0.012 285);
+  --color-primary: oklch(0.58 0.18 270);
   --color-primary-foreground: oklch(0.985 0.002 247.86);
-  --color-secondary: oklch(0.22 0.014 285.82);
-  --color-secondary-foreground: oklch(0.985 0.002 247.86);
-  --color-muted: oklch(0.22 0.014 285.82);
-  --color-muted-foreground: oklch(0.556 0.019 247.86);
-  --color-accent: oklch(0.22 0.02 280);
-  --color-accent-foreground: oklch(0.985 0.002 247.86);
-  --color-destructive: oklch(0.55 0.2 27);
+  --color-secondary: oklch(0.95 0.008 285);
+  --color-secondary-foreground: oklch(0.25 0.012 285);
+  --color-muted: oklch(0.96 0.005 285);
+  --color-muted-foreground: oklch(0.52 0.015 285);
+  --color-accent: oklch(0.94 0.015 270);
+  --color-accent-foreground: oklch(0.48 0.18 270);
+  --color-destructive: oklch(0.60 0.18 27);
   --color-destructive-foreground: oklch(0.985 0.002 247.86);
-  --color-border: oklch(0.26 0.014 285.82);
-  --color-input: oklch(0.26 0.014 285.82);
-  --color-ring: oklch(0.62 0.18 270);
-  --color-chart-1: oklch(0.62 0.18 270);
-  --color-chart-2: oklch(0.6 0.16 165);
-  --color-chart-3: oklch(0.55 0.2 27);
-  --color-chart-4: oklch(0.65 0.15 85);
-  --color-chart-5: oklch(0.7 0.14 140);
+  --color-border: oklch(0.92 0.006 285);
+  --color-input: oklch(0.92 0.006 285);
+  --color-ring: oklch(0.58 0.18 270);
+  --color-chart-1: oklch(0.58 0.18 270);
+  --color-chart-2: oklch(0.52 0.15 165);
+  --color-chart-3: oklch(0.60 0.18 27);
+  --color-chart-4: oklch(0.65 0.13 85);
+  --color-chart-5: oklch(0.70 0.12 140);
 
   /* Sidebar-specific colors */
-  --color-sidebar: oklch(0.155 0.014 285.82);
-  --color-sidebar-foreground: oklch(0.985 0.002 247.86);
-  --color-sidebar-primary: oklch(0.62 0.18 270);
+  --color-sidebar: oklch(0.98 0.004 285);
+  --color-sidebar-foreground: oklch(0.25 0.012 285);
+  --color-sidebar-primary: oklch(0.58 0.18 270);
   --color-sidebar-primary-foreground: oklch(0.985 0.002 247.86);
-  --color-sidebar-accent: oklch(0.22 0.02 280);
-  --color-sidebar-accent-foreground: oklch(0.985 0.002 247.86);
-  --color-sidebar-border: oklch(0.26 0.014 285.82);
-  --color-sidebar-ring: oklch(0.62 0.18 270);
+  --color-sidebar-accent: oklch(0.94 0.015 270);
+  --color-sidebar-accent-foreground: oklch(0.48 0.18 270);
+  --color-sidebar-border: oklch(0.92 0.006 285);
+  --color-sidebar-ring: oklch(0.58 0.18 270);
+
+  /* Scrollbar theme colors */
+  --scrollbar-thumb: oklch(0.8 0.01 285);
+  --scrollbar-thumb-hover: oklch(0.7 0.01 285);
 }
 
 /*
@@ -79,10 +81,11 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: oklch(0.3 0.01 285);
+  background: var(--scrollbar-thumb);
   border-radius: 999px;
+  transition: background 0.3s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: oklch(0.4 0.01 285);
+  background: var(--scrollbar-thumb-hover);
 }

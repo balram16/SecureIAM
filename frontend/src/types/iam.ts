@@ -12,6 +12,27 @@ export interface Policy {
   statements: { statements: Statement[] };
   createdAt: string;
   updatedAt: string;
+  users?: {
+    userId: string;
+    policyId: string;
+    attachedAt: string;
+    user: {
+      id: string;
+      name: string;
+      email: string;
+      isRoot: boolean;
+    };
+  }[];
+  groups?: {
+    groupId: string;
+    policyId: string;
+    attachedAt: string;
+    group: {
+      id: string;
+      name: string;
+      description: string | null;
+    };
+  }[];
 }
 
 export interface User {

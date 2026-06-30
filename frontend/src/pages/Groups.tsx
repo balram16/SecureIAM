@@ -51,7 +51,8 @@ const Groups = () => {
     queryFn: async () => {
       const res = await api.get('/iam/groups');
       return res.data.data;
-    }
+    },
+    retry: false
   });
 
   useEffect(() => {
@@ -115,7 +116,9 @@ const Groups = () => {
       setShowCreateModal(false);
       fetchGroups();
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to create group.');
+      const msg = err.response?.data?.message || 'Failed to create group.';
+      const status = err.response?.status ? ` (Status ${err.response.status})` : '';
+      setError(`${msg}${status}`);
     } finally {
       setLoading(false);
     }
@@ -215,6 +218,60 @@ const Groups = () => {
     p.name.toLowerCase().includes(policySearchText.toLowerCase())
   );
 
+  if (queryError && (queryError as any).response?.status === 403) {
+    const message = (queryError as any).response?.data?.message || '';
+    const missingPermission = message.match(/perform\s+([a-zA-Z0-9:]+)/)?.[1] || 'iam:ListGroups';
+    
+    return (
+      <div className="flex h-screen bg-background overflow-hidden text-foreground">
+        <Sidebar />
+        <div className="flex-1 flex items-center justify-center p-8 relative">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-destructive/5 rounded-full blur-[120px] -z-10" />
+          <div className="absolute bottom-0 left-0 w-96 h-96 bg-primary/5 rounded-full blur-[120px] -z-10" />
+
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="max-w-md w-full bg-card border border-destructive/20 rounded-2xl shadow-2xl p-8 text-center space-y-6 relative overflow-hidden"
+          >
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-destructive via-red-500 to-destructive" />
+            
+            <div className="mx-auto w-16 h-16 bg-destructive/10 text-destructive border border-destructive/20 rounded-full flex items-center justify-center shadow-lg shadow-destructive/10 animate-pulse">
+              <ShieldAlert className="h-8 w-8" />
+            </div>
+
+            <div className="space-y-2">
+              <h2 className="text-xl font-bold tracking-tight text-foreground flex items-center justify-center gap-2">
+                🛡️ Permission Denied
+              </h2>
+              <p className="text-[11px] font-bold text-destructive uppercase tracking-widest bg-destructive/5 py-1 px-3 rounded-full inline-block border border-destructive/10">
+                403 Forbidden
+              </p>
+            </div>
+
+            <div className="space-y-3 p-4 bg-background/50 border border-border/40 rounded-xl">
+              <div className="text-xs text-muted-foreground font-medium">Missing Permission</div>
+              <div className="font-mono text-sm text-foreground bg-muted/60 py-1.5 px-3 rounded-lg border border-border/50 select-all font-semibold inline-block">
+                {missingPermission}
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed pt-1">
+                You do not have the required permissions in your attached identity policies or groups to access this console page.
+              </p>
+            </div>
+
+            <Button
+              variant="outline"
+              className="w-full text-xs font-semibold cursor-pointer border-border hover:bg-muted/50"
+              onClick={() => window.location.href = '/dashboard'}
+            >
+              Return to Dashboard
+            </Button>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen bg-background overflow-hidden text-foreground">
       <Sidebar />
@@ -254,7 +311,7 @@ const Groups = () => {
                     Organize user access by clustering members and binding reusable managed policies.
                   </p>
                 </div>
-                <Button onClick={() => setShowCreateModal(true)} className="gap-2 self-start sm:self-auto">
+                 <Button onClick={() => { setError(''); setName(''); setDescription(''); setShowCreateModal(true); }} className="gap-2 self-start sm:self-auto">
                   <Plus className="h-4 w-4" />
                   Create Group
                 </Button>
@@ -362,6 +419,18 @@ const Groups = () => {
                       className="bg-card border border-border rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4"
                     >
                       <h3 className="text-lg font-bold text-foreground">Create User Group</h3>
+                      
+                      {error && (
+                        <div className="p-3 bg-destructive/10 border border-destructive/20 text-destructive rounded-xl flex items-start gap-2.5 text-xs">
+                          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                          <div className="flex-1">
+                            <span className="font-semibold">Error:</span> {error}
+                          </div>
+                          <button type="button" onClick={() => setError('')} className="text-muted-foreground hover:text-foreground">
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )}
                       
                       <div className="space-y-1.5">
                         <Label>Group Name</Label>

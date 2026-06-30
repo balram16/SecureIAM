@@ -1,6 +1,29 @@
-# SecureIAM: AWS-Modeled Self-Administered IAM Console
+# SecureIAM: Self-Administered Identity & Access Management Console
 
-An enterprise-grade, self-administered Identity and Access Management (IAM) console modeled directly after AWS IAM. This system features granular user and group-level identity policies, a robust permission boundaries engine, and an automated delegation bypass prevention mechanism that protects the platform from privilege escalation during custom policy authorship.
+An enterprise-grade, self-administered Identity and Access Management (IAM) console. This system features granular user and group-level identity policies, a robust permission boundaries engine, and an automated delegation bypass prevention mechanism that protects the platform from privilege escalation during custom policy authorship.
+
+---
+
+## 🛠 Technology Stack
+
+This application is built as a complete TypeScript monorepo splitting into decoupled frontend and backend services:
+
+### Frontend Layer
+- **Framework**: [React](https://react.dev/) (Vite-driven build environment)
+- **UI Components**: [shadcn/ui](https://ui.shadcn.com/) components built using Radix UI and Tailwind CSS
+- **State & Queries**: [TanStack React Query](https://tanstack.com/query/latest) for efficient server-state sync
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/) for a sleek, responsive, and dark-themed UI console
+- **Animations**: [Framer Motion](https://www.framer.com/motion/) for premium micro-interactions and smooth tab transitions
+
+### Backend Layer
+- **Runtime**: [Node.js](https://nodejs.org/) & [Express](https://expressjs.com/) RESTful Web Services
+- **ORM & Client**: [Prisma Client](https://www.prisma.io/) database access toolkit
+- **Schema & Validation**: [Zod](https://zod.dev/) for payload runtime schema validations
+- **Security**: [bcrypt](https://github.com/kelektiv/node.bcrypt.js) for password hashing and [JSON Web Tokens (JWT)](https://jwt.io/) for stateless request authorization
+- **Development Tooling**: [tsx](https://github.com/privatenumber/tsx) for fast TypeScript execution and hot reloading
+
+### Database Layer
+- **Engine**: [PostgreSQL](https://www.postgresql.org/) for storing relational entities (Users, Groups, Policies, Boundaries, Memberships)
 
 ---
 
@@ -8,7 +31,6 @@ An enterprise-grade, self-administered Identity and Access Management (IAM) cons
 
 - **Node.js**: `v22.19.0` or higher
 - **PostgreSQL**: `v16` or higher
-  *(Note: While some project sheets mention MongoDB, this codebase uses **PostgreSQL** as configured in the Prisma schemas).*
 - **Database Client**: Prisma ORM (bundled with backend)
 
 ---
@@ -69,9 +91,9 @@ Create a `.env` file inside the `backend/` directory. The following variables mu
    *(Note: If you run into an EPERM file lock error during generation, make sure the backend dev server is stopped so Windows frees the DLL handles).*
 
 6. **Run Database Seed**:
-   Seed the database with default users, groups, and policies:
+   Seed the database with default users, groups, and policies using the seeding script:
    ```bash
-   node prisma/seed.js
+   npm run db:seed
    ```
 
 7. **Start Backend in Development Mode**:
@@ -86,7 +108,7 @@ Create a `.env` file inside the `backend/` directory. The following variables mu
 
 1. **Navigate to the frontend directory**:
    ```bash
-   cd ../frontend
+   cd frontend
    ```
 
 2. **Install dependencies**:
@@ -100,15 +122,6 @@ Create a `.env` file inside the `backend/` directory. The following variables mu
    ```
    The React client console runs locally at: `http://localhost:5173`
 
----
-
-## Running Verification / Automated Integration Tests
-
-To run the complete automated integration test suite validating all custom permission policies, boundaries evaluations, and delegation bypass logic:
-```bash
-# Execute this script from the backend directory:
-node scratch/verify_iam.js
-```
 
 ---
 

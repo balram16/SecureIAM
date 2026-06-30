@@ -191,7 +191,32 @@ export const getAllPolicies = async () => {
 
 export const getPolicyById = async (id: string) => {
   const policy = await prisma.policy.findUnique({
-    where: { id }
+    where: { id },
+    include: {
+      users: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              isRoot: true
+            }
+          }
+        }
+      },
+      groups: {
+        include: {
+          group: {
+            select: {
+              id: true,
+              name: true,
+              description: true
+            }
+          }
+        }
+      }
+    }
   });
 
   if (!policy) {

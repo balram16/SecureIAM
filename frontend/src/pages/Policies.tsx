@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import Sidebar from '../components/Sidebar';
 import api from '../services/api';
-import { Plus, Trash2, Edit3, Eye, FileText, ChevronLeft, AlertCircle, Search, X } from 'lucide-react';
+import { Plus, Trash2, Edit3, Eye, FileText, ChevronLeft, AlertCircle, Search, X, ShieldAlert, ChevronDown, ChevronUp } from 'lucide-react';
 import { Policy, User, Group, Statement } from '../types/iam';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,9 +24,91 @@ const VALID_ACTIONS = [
   'iam:ListPolicies', 'iam:GetPolicy', 'iam:CreatePolicy', 'iam:UpdatePolicy', 'iam:DeletePolicy',
   'iam:ListGroups', 'iam:GetGroup', 'iam:CreateGroup', 'iam:UpdateGroup', 'iam:DeleteGroup',
   'iam:AddUserToGroup', 'iam:RemoveUserFromGroup', 'iam:AttachGroupPolicy', 'iam:DetachGroupPolicy',
-  'iam:ListUsers', 'iam:GetUser', 'iam:AttachUserPolicy', 'iam:DetachUserPolicy',
-  'iam:PutUserBoundary', 'iam:DeleteUserBoundary'
+  'iam:ListUsers', 'iam:GetUser', 'iam:AttachUserPolicy', 'iam:DetachUserPolicy', 'iam:PutUserBoundary',
+  'iam:DeleteUserBoundary'
 ];
+
+const ACTIONS_BY_GROUP: Record<string, string[]> = {
+  "Reports Permissions": ['reports:List', 'reports:Read', 'reports:Create', 'reports:Update', 'reports:Delete'],
+  "Alerts Permissions": ['alerts:List', 'alerts:Read', 'alerts:Create', 'alerts:Acknowledge', 'alerts:Delete'],
+  "Settings & Auditing": ['settings:Read', 'settings:Update', 'audit:List', 'audit:Read'],
+  "IAM Control Plane": [
+    'iam:ListPolicies', 'iam:GetPolicy', 'iam:CreatePolicy', 'iam:UpdatePolicy', 'iam:DeletePolicy',
+    'iam:ListGroups', 'iam:GetGroup', 'iam:CreateGroup', 'iam:UpdateGroup', 'iam:DeleteGroup',
+    'iam:AddUserToGroup', 'iam:RemoveUserFromGroup', 'iam:AttachGroupPolicy', 'iam:DetachGroupPolicy',
+    'iam:ListUsers', 'iam:GetUser', 'iam:AttachUserPolicy', 'iam:DetachUserPolicy', 'iam:PutUserBoundary',
+    'iam:DeleteUserBoundary'
+  ]
+};
+
+const CATEGORY_TABS = ['Reports', 'Alerts', 'Settings', 'Audit', 'IAM'] as const;
+type Category = typeof CATEGORY_TABS[number];
+
+const IAM_COLUMNS = [
+  {
+    groups: [
+      {
+        name: 'USERS',
+        actions: ['iam:ListUsers', 'iam:GetUser']
+      },
+      {
+        name: 'GROUPS',
+        actions: ['iam:ListGroups', 'iam:GetGroup', 'iam:CreateGroup', 'iam:UpdateGroup', 'iam:DeleteGroup']
+      }
+    ]
+  },
+  {
+    groups: [
+      {
+        name: 'POLICIES',
+        actions: ['iam:ListPolicies', 'iam:GetPolicy', 'iam:CreatePolicy', 'iam:UpdatePolicy', 'iam:DeletePolicy']
+      },
+      {
+        name: 'MEMBERSHIP',
+        actions: ['iam:AddUserToGroup', 'iam:RemoveUserFromGroup']
+      }
+    ]
+  },
+  {
+    groups: [
+      {
+        name: 'POLICY ATTACHMENTS',
+        actions: ['iam:AttachUserPolicy', 'iam:DetachUserPolicy', 'iam:AttachGroupPolicy', 'iam:DetachGroupPolicy']
+      },
+      {
+        name: 'PERMISSION BOUNDARIES',
+        actions: ['iam:PutUserBoundary', 'iam:DeleteUserBoundary']
+      }
+    ]
+  }
+];
+
+const NON_IAM_GROUPS: Record<Exclude<Category, 'IAM'>, { name: string; actions: string[] }[]> = {
+  Reports: [
+    {
+      name: 'REPORTS PERMISSIONS',
+      actions: ['reports:List', 'reports:Read', 'reports:Create', 'reports:Update', 'reports:Delete']
+    }
+  ],
+  Alerts: [
+    {
+      name: 'ALERTS PERMISSIONS',
+      actions: ['alerts:List', 'alerts:Read', 'alerts:Create', 'alerts:Acknowledge', 'alerts:Delete']
+    }
+  ],
+  Settings: [
+    {
+      name: 'SETTINGS PERMISSIONS',
+      actions: ['settings:Read', 'settings:Update']
+    }
+  ],
+  Audit: [
+    {
+      name: 'AUDIT PERMISSIONS',
+      actions: ['audit:List', 'audit:Read']
+    }
+  ]
+};
 
 const Policies = () => {
   const queryClient = useQueryClient();
@@ -53,6 +135,14 @@ const Policies = () => {
   const [activeDropdownIndex, setActiveDropdownIndex] = useState<number | null>(null);
   const [actionSearch, setActionSearch] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<Category>('Reports');
+
+  const handleCustomActionsChange = (stmtIndex: number, val: string) => {
+    const customActs = val.split(',').map(s => s.trim()).filter(Boolean);
+    const standardActs = statements[stmtIndex].Action.filter(act => VALID_ACTIONS.includes(act));
+    const newActions = [...standardActs, ...customActs];
+    handleStatementChange(stmtIndex, 'Action', newActions);
+  };
 
   // TanStack Query for server state
   const { data: policies = [], isLoading: isPoliciesLoading, error: queryError } = useQuery<Policy[]>({
@@ -60,7 +150,8 @@ const Policies = () => {
     queryFn: async () => {
       const res = await api.get('/iam/policies');
       return res.data.data;
-    }
+    },
+    retry: false
   });
 
   useEffect(() => {
@@ -248,6 +339,60 @@ const Policies = () => {
     (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
+  if (queryError && (queryError as any).response?.status === 403) {
+    const message = (queryError as any).response?.data?.message || '';
+    const missingPermission = message.match(/perform\s+([a-zA-Z0-9:]+)/)?.[1] || 'iam:ListPolicies';
+    
+    return (
+      <div className="flex h-screen bg-background overflow-hidden text-foreground">
+        <Sidebar />
+        <div className="flex-1 flex items-center justify-center p-8 relative">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-destructive/5 rounded-full blur-[120px] -z-10" />
+          <div className="absolute bottom-0 left-0 w-96 h-96 bg-primary/5 rounded-full blur-[120px] -z-10" />
+
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="max-w-md w-full bg-card border border-destructive/20 rounded-2xl shadow-2xl p-8 text-center space-y-6 relative overflow-hidden"
+          >
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-destructive via-red-500 to-destructive" />
+            
+            <div className="mx-auto w-16 h-16 bg-destructive/10 text-destructive border border-destructive/20 rounded-full flex items-center justify-center shadow-lg shadow-destructive/10 animate-pulse">
+              <ShieldAlert className="h-8 w-8" />
+            </div>
+
+            <div className="space-y-2">
+              <h2 className="text-xl font-bold tracking-tight text-foreground flex items-center justify-center gap-2">
+                🛡️ Permission Denied
+              </h2>
+              <p className="text-[11px] font-bold text-destructive uppercase tracking-widest bg-destructive/5 py-1 px-3 rounded-full inline-block border border-destructive/10">
+                403 Forbidden
+              </p>
+            </div>
+
+            <div className="space-y-3 p-4 bg-background/50 border border-border/40 rounded-xl">
+              <div className="text-xs text-muted-foreground font-medium">Missing Permission</div>
+              <div className="font-mono text-sm text-foreground bg-muted/60 py-1.5 px-3 rounded-lg border border-border/50 select-all font-semibold inline-block">
+                {missingPermission}
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed pt-1">
+                You do not have the required permissions in your attached identity policies or groups to access this console page.
+              </p>
+            </div>
+
+            <Button
+              variant="outline"
+              className="w-full text-xs font-semibold cursor-pointer border-border hover:bg-muted/50"
+              onClick={() => window.location.href = '/dashboard'}
+            >
+              Return to Dashboard
+            </Button>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen bg-background overflow-hidden text-foreground">
       <Sidebar />
@@ -433,8 +578,20 @@ const Policies = () => {
                     </div>
                   </CardHeader>
                   <CardContent className="flex-1 min-h-0">
-                    <div className="h-full overflow-auto bg-background border border-border/50 rounded-xl p-4 font-mono text-xs text-emerald-400 select-all">
-                      <pre>{JSON.stringify(selectedPolicy.statements, null, 2)}</pre>
+                    <div className="flex flex-col h-full rounded-xl overflow-hidden border border-zinc-800 bg-[#1e1e1e] shadow-lg min-h-[300px]">
+                      {/* VS Code Window Header Bar */}
+                      <div className="flex items-center px-4 py-2.5 bg-[#181818] border-b border-zinc-800/80 select-none">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full bg-[#ff5f56]" />
+                          <span className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e]" />
+                          <span className="w-2.5 h-2.5 rounded-full bg-[#27c93f]" />
+                        </div>
+                      </div>
+                      
+                      {/* Editor Area */}
+                      <div className="flex-1 overflow-auto p-4 font-mono text-xs text-emerald-400 select-all leading-relaxed bg-[#1e1e1e]">
+                        <pre>{JSON.stringify(selectedPolicy.statements, null, 2)}</pre>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -448,9 +605,9 @@ const Policies = () => {
                     {/* Users */}
                     <div>
                       <Label className="mb-2 block">Attached to Users</Label>
-                      {((selectedPolicy as any).users && (selectedPolicy as any).users.length > 0) ? (
+                      {(selectedPolicy.users && selectedPolicy.users.length > 0) ? (
                         <div className="space-y-1.5">
-                          {(selectedPolicy as any).users.map((u: any) => (
+                          {selectedPolicy.users.map((u) => (
                             <div key={u.user.id} className="p-2.5 bg-background border border-border/50 rounded-lg text-xs font-medium">
                               {u.user.name} ({u.user.email})
                             </div>
@@ -464,9 +621,9 @@ const Policies = () => {
                     {/* Groups */}
                     <div>
                       <Label className="mb-2 block">Attached to Groups</Label>
-                      {((selectedPolicy as any).groups && (selectedPolicy as any).groups.length > 0) ? (
+                      {(selectedPolicy.groups && selectedPolicy.groups.length > 0) ? (
                         <div className="space-y-1.5">
-                          {(selectedPolicy as any).groups.map((g: any) => (
+                          {selectedPolicy.groups.map((g) => (
                             <div key={g.group.id} className="p-2.5 bg-background border border-border/50 rounded-lg text-xs font-medium">
                               {g.group.name}
                             </div>
@@ -697,27 +854,6 @@ const Policies = () => {
                             {/* Action Multi-select */}
                             <div className="md:col-span-2 space-y-1.5">
                               <Label>Actions</Label>
-                              
-                              {/* Selected Actions badges */}
-                              <div className="flex flex-wrap gap-1.5 p-2.5 bg-muted/30 border border-border/50 rounded-lg min-h-[42px]">
-                                {stmt.Action.length === 0 ? (
-                                  <span className="text-xs text-muted-foreground p-1 italic">No actions selected. Choose from dropdown below.</span>
-                                ) : (
-                                  stmt.Action.map(act => (
-                                    <Badge key={act} variant="default" className="text-[10px] gap-1 pr-1">
-                                      <span>{act}</span>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleToggleAction(stmtIndex, act)}
-                                        className="hover:text-foreground font-bold text-xs ml-0.5"
-                                      >
-                                        <X className="h-3 w-3" />
-                                      </button>
-                                    </Badge>
-                                  ))
-                                )}
-                              </div>
-
                               {/* Toggle Dropdown */}
                               <div className="relative">
                                 <Button
@@ -727,52 +863,140 @@ const Policies = () => {
                                     setActionSearch('');
                                     setActiveDropdownIndex(activeDropdownIndex === stmtIndex ? null : stmtIndex);
                                   }}
-                                  className="w-full justify-between h-9 text-xs"
+                                  className={`w-full justify-between h-10 px-3.5 text-xs bg-background border border-border/80 hover:bg-muted/10 hover:border-border transition-all rounded-lg ${
+                                    activeDropdownIndex === stmtIndex ? 'ring-2 ring-primary/20 border-primary/45 bg-muted/5' : 'shadow-sm'
+                                  }`}
                                 >
-                                  <span>Manage Policy Actions</span>
-                                  <Plus className="h-3.5 w-3.5 text-muted-foreground" />
-                                </Button>
-
-                                {/* Dropdown */}
-                                <AnimatePresence>
-                                  {activeDropdownIndex === stmtIndex && (
-                                    <motion.div
-                                      initial={{ opacity: 0, y: -4 }}
-                                      animate={{ opacity: 1, y: 0 }}
-                                      exit={{ opacity: 0, y: -4 }}
-                                      transition={{ duration: 0.15 }}
-                                      className="absolute left-0 right-0 mt-2 p-3 bg-card border border-border rounded-xl shadow-2xl z-20 flex flex-col max-h-[300px]"
-                                    >
-                                      <Input
-                                        value={actionSearch}
-                                        onChange={(e) => setActionSearch(e.target.value)}
-                                        placeholder="Filter action strings..."
-                                        className="mb-2 h-8 text-xs"
-                                      />
-                                      <div className="flex-1 overflow-y-auto space-y-0.5">
-                                        {VALID_ACTIONS.filter(act => act.toLowerCase().includes(actionSearch.toLowerCase())).map(act => {
-                                          const isChecked = stmt.Action.includes(act);
-                                          return (
-                                            <label
-                                              key={act}
-                                              className="flex items-center gap-2.5 px-2 py-1.5 hover:bg-muted/50 rounded-lg cursor-pointer text-xs transition-colors"
-                                            >
-                                              <input
-                                                type="checkbox"
-                                                checked={isChecked}
-                                                onChange={() => handleToggleAction(stmtIndex, act)}
-                                                className="rounded border-border text-primary focus:ring-0 focus:ring-offset-0 bg-background"
-                                              />
-                                              <span className={`font-mono ${isChecked ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
-                                                {act}
-                                              </span>
-                                            </label>
-                                          );
-                                        })}
-                                      </div>
-                                    </motion.div>
+                                  <span>Select action permissions...</span>
+                                  {activeDropdownIndex === stmtIndex ? (
+                                    <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                                  ) : (
+                                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
                                   )}
-                                </AnimatePresence>
+                                </Button>
+                                 <AnimatePresence>
+                                   {activeDropdownIndex === stmtIndex && (
+                                     <motion.div
+                                       initial={{ opacity: 0, y: -4 }}
+                                       animate={{ opacity: 1, y: 0 }}
+                                       exit={{ opacity: 0, y: -4 }}
+                                       className="absolute left-0 right-0 mt-2 p-4 bg-background border border-border/80 rounded-xl shadow-xl z-30 flex flex-col max-h-[380px] overflow-hidden"
+                                     >
+                                       {/* Tab Header */}
+                                       <div className="flex items-center justify-between gap-4 border-b border-border/40 pb-3 mb-3 shrink-0">
+                                         <div className="flex items-center gap-1 bg-muted/40 p-0.5 rounded-lg border border-border/50">
+                                           {CATEGORY_TABS.map((cat) => (
+                                             <button
+                                               key={cat}
+                                               type="button"
+                                               onClick={() => setActiveCategory(cat)}
+                                               className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
+                                                 activeCategory === cat
+                                                   ? 'bg-background text-primary shadow-sm border border-border/10'
+                                                   : 'text-muted-foreground hover:text-foreground'
+                                               }`}
+                                             >
+                                               {cat}
+                                             </button>
+                                           ))}
+                                         </div>
+                                       </div>
+
+                                       {/* Action Checkboxes List */}
+                                       <div className="flex-1 overflow-y-auto pr-1">
+                                         {activeCategory === 'IAM' ? (
+                                           <div className="grid grid-cols-3 gap-5">
+                                             {IAM_COLUMNS.map((col, colIdx) => (
+                                               <div key={colIdx} className="space-y-3.5">
+                                                 {col.groups.map((group) => (
+                                                   <div key={group.name} className="space-y-1">
+                                                     <div className="text-[9px] font-bold text-muted-foreground/80 uppercase tracking-widest border-b border-border/20 pb-0.5 mb-1">
+                                                       {group.name}
+                                                     </div>
+                                                     <div className="space-y-0.5">
+                                                       {group.actions.map((act) => {
+                                                         const isChecked = stmt.Action.includes(act);
+                                                         const isRestricted = act === 'iam:PutUserBoundary' || act === 'iam:DeleteUserBoundary';
+                                                         return (
+                                                           <label
+                                                             key={act}
+                                                             title={isRestricted ? "Root only — cannot be delegated" : undefined}
+                                                             className={`flex items-center gap-2.5 px-2.5 py-1.5 hover:bg-primary/5 rounded-lg text-xs transition-all ${
+                                                               isRestricted ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
+                                                             } ${
+                                                               isChecked ? 'bg-primary/5 text-primary font-medium' : 'text-foreground/80 hover:text-foreground'
+                                                             }`}
+                                                           >
+                                                             <input
+                                                               type="checkbox"
+                                                               checked={isChecked}
+                                                               disabled={isRestricted}
+                                                               onChange={() => !isRestricted && handleToggleAction(stmtIndex, act)}
+                                                               className="rounded border-border text-primary focus:ring-0 focus:ring-offset-0 bg-background h-3.5 w-3.5 disabled:opacity-50"
+                                                             />
+                                                             <span className="font-mono text-[11.5px] flex items-center justify-between w-full">
+                                                               <span>{act}</span>
+                                                               {isRestricted && (
+                                                                 <span className="text-[8px] bg-rose-500/10 text-rose-500 font-semibold px-1 py-0.5 rounded tracking-wide shrink-0 font-sans ml-1">
+                                                                   Root Only
+                                                                 </span>
+                                                               )}
+                                                             </span>
+                                                           </label>
+                                                         );
+                                                       })}
+                                                     </div>
+                                                   </div>
+                                                 ))}
+                                               </div>
+                                             ))}
+                                           </div>
+                                         ) : (
+                                           <div className="space-y-2">
+                                             {NON_IAM_GROUPS[activeCategory as Exclude<Category, 'IAM'>].map((group) => (
+                                               <div key={group.name} className="space-y-1.5">
+                                                 <div className="text-[9px] font-bold text-muted-foreground/80 uppercase tracking-widest border-b border-border/20 pb-0.5 mb-1.5">
+                                                   {group.name}
+                                                 </div>
+                                                 <div className="grid grid-cols-3 gap-2.5">
+                                                   {group.actions.map((act) => {
+                                                     const isChecked = stmt.Action.includes(act);
+                                                     return (
+                                                       <label
+                                                         key={act}
+                                                         className={`flex items-center gap-2.5 px-2.5 py-1.5 hover:bg-primary/5 rounded-lg cursor-pointer text-xs transition-all ${
+                                                           isChecked ? 'bg-primary/5 text-primary font-medium' : 'text-foreground/80 hover:text-foreground'
+                                                         }`}
+                                                       >
+                                                         <input
+                                                           type="checkbox"
+                                                           checked={isChecked}
+                                                           onChange={() => handleToggleAction(stmtIndex, act)}
+                                                           className="rounded border-border text-primary focus:ring-0 focus:ring-offset-0 bg-background h-3.5 w-3.5"
+                                                         />
+                                                         <span className="font-mono text-[11.5px]">{act}</span>
+                                                       </label>
+                                                     );
+                                                   })}
+                                                 </div>
+                                               </div>
+                                             ))}
+                                           </div>
+                                         )}
+                                       </div>
+
+                                       <Button
+                                         type="button"
+                                         variant="ghost"
+                                         size="sm"
+                                         onClick={() => setActiveDropdownIndex(null)}
+                                         className="mt-3.5 h-8 text-[11px] font-semibold cursor-pointer hover:bg-muted/50 border border-border/40 shrink-0"
+                                       >
+                                         Close Selector Drawer
+                                       </Button>
+                                     </motion.div>
+                                   )}
+                                 </AnimatePresence>
                               </div>
                             </div>
                           </div>
@@ -791,8 +1015,20 @@ const Policies = () => {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="flex-1 min-h-0">
-                    <div className="h-full overflow-auto bg-background border border-border/50 rounded-xl p-4 font-mono text-[11px] text-emerald-400 select-all">
-                      <pre>{getJsonPreview()}</pre>
+                    <div className="flex flex-col h-full rounded-xl overflow-hidden border border-zinc-800 bg-[#1e1e1e] shadow-lg min-h-[300px]">
+                      {/* VS Code Window Header Bar */}
+                      <div className="flex items-center px-4 py-2.5 bg-[#181818] border-b border-zinc-800/80 select-none">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full bg-[#ff5f56]" />
+                          <span className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e]" />
+                          <span className="w-2.5 h-2.5 rounded-full bg-[#27c93f]" />
+                        </div>
+                      </div>
+                      
+                      {/* Editor Area */}
+                      <div className="flex-1 overflow-auto p-4 font-mono text-[11px] text-emerald-400 select-all leading-relaxed bg-[#1e1e1e]">
+                        <pre>{getJsonPreview()}</pre>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

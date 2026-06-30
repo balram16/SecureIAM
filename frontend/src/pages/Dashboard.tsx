@@ -105,6 +105,13 @@ const Dashboard = () => {
       }
     } catch (err: any) {
       const code = err.response?.status || 500;
+      if (code === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+        return;
+      }
       if (code === 403) {
         setResults(prev => ({
           ...prev,
@@ -136,39 +143,43 @@ const Dashboard = () => {
 
   const getStatusBadge = (res: TestResult | undefined) => {
     if (!res) {
-      return <Badge variant="secondary" className="text-[9px]">Not Tested</Badge>;
+      return null;
     }
     if (res.status === 'loading') {
       return (
-        <Badge variant="warning" className="text-[9px] animate-pulse">
-          <Loader2 className="h-3 w-3 animate-spin" />
+        <span className="bg-amber-500/10 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/25 px-2.5 py-1 text-[10px] font-semibold rounded-xl flex items-center gap-1.5 shrink-0 animate-pulse">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
           Testing...
-        </Badge>
+        </span>
       );
     }
     if (res.status === 'allowed') {
       return (
-        <Badge variant="success" className="text-[9px]">
-          <ShieldCheck className="h-3 w-3" />
-          Allowed (200)
-        </Badge>
+        <span className="bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 px-2.5 py-1 text-[10px] font-semibold rounded-xl flex items-center gap-1.5 shrink-0">
+          <ShieldCheck className="h-3.5 w-3.5" />
+          Success
+        </span>
       );
     }
     if (res.status === 'denied') {
       return (
-        <Badge variant="destructive" className="text-[9px]">
-          <AlertTriangle className="h-3 w-3" />
-          Denied (403)
-        </Badge>
+        <span className="bg-rose-500/10 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/25 px-2.5 py-1 text-[10px] font-semibold rounded-xl flex items-center gap-1.5 shrink-0">
+          <AlertTriangle className="h-3.5 w-3.5" />
+          Access Denied
+        </span>
       );
     }
-    return <Badge variant="warning" className="text-[9px]">Err ({res.code})</Badge>;
+    return (
+      <span className="bg-amber-500/10 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/25 px-2.5 py-1 text-[10px] font-semibold rounded-xl flex items-center gap-1.5 shrink-0">
+        Err ({res.code})
+      </span>
+    );
   };
 
   return (
     <div className="flex h-screen bg-background overflow-hidden text-foreground">
       <Sidebar />
-      
+
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto p-8 relative">
         {/* Background glow */}

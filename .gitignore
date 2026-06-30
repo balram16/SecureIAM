@@ -39,3 +39,6 @@ Thumbs.db
 # User Exclusions (Temporary)
 MERN Stack Assessment.pdf
 API_REFERENCE.md
+API_REFERENCE
+backend/verify_iam.js
+backend/verify_iam_comprehensive.js

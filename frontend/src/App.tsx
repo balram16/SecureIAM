@@ -9,14 +9,14 @@ function App() {
     <AuthProvider>
       <BrowserRouter>
         <Toaster
-          theme="dark"
+          theme="light"
           position="top-right"
           richColors
           toastOptions={{
             style: {
-              background: 'oklch(0.17 0.014 285.82)',
-              border: '1px solid oklch(0.26 0.014 285.82)',
-              color: 'oklch(0.985 0.002 247.86)',
+              background: 'oklch(1 0 0)',
+              border: '1px solid oklch(0.92 0.006 285)',
+              color: 'oklch(0.20 0.012 285)',
             },
           }}
         />

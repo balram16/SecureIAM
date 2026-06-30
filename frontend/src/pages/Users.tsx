@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import Sidebar from '../components/Sidebar';
 import api from '../services/api';
-import { ChevronLeft, ChevronDown, ChevronUp, AlertCircle, Search, X, Check, Eye, Plus, ShieldCheck, Shield, Trash2, Key, Users as UsersIcon } from 'lucide-react';
+import { ChevronLeft, ChevronDown, ChevronUp, AlertCircle, Search, X, Check, Eye, Plus, ShieldCheck, Shield, Trash2, Key, Users as UsersIcon, ShieldAlert } from 'lucide-react';
 import { User, Policy } from '../types/iam';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -59,7 +59,8 @@ const Users = () => {
     queryFn: async () => {
       const res = await api.get('/iam/users');
       return res.data.data;
-    }
+    },
+    retry: false
   });
 
   useEffect(() => {
@@ -95,7 +96,7 @@ const Users = () => {
       const res = await api.get('/iam/policies');
       // Only managed policies can be attached or used as boundaries
       setAllPolicies(res.data.data.filter((p: Policy) => p.type === 'MANAGED'));
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to load policies', err);
     }
   };
@@ -166,6 +167,60 @@ const Users = () => {
   const filterBoundaryPolicies = allPolicies.filter(p =>
     p.name.toLowerCase().includes(boundarySearchText.toLowerCase())
   );
+
+  if (queryError && (queryError as any).response?.status === 403) {
+    const message = (queryError as any).response?.data?.message || '';
+    const missingPermission = message.match(/perform\s+([a-zA-Z0-9:]+)/)?.[1] || 'iam:ListUsers';
+    
+    return (
+      <div className="flex h-screen bg-background overflow-hidden text-foreground">
+        <Sidebar />
+        <div className="flex-1 flex items-center justify-center p-8 relative">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-destructive/5 rounded-full blur-[120px] -z-10" />
+          <div className="absolute bottom-0 left-0 w-96 h-96 bg-primary/5 rounded-full blur-[120px] -z-10" />
+
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="max-w-md w-full bg-card border border-destructive/20 rounded-2xl shadow-2xl p-8 text-center space-y-6 relative overflow-hidden"
+          >
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-destructive via-red-500 to-destructive" />
+            
+            <div className="mx-auto w-16 h-16 bg-destructive/10 text-destructive border border-destructive/20 rounded-full flex items-center justify-center shadow-lg shadow-destructive/10 animate-pulse">
+              <ShieldAlert className="h-8 w-8" />
+            </div>
+
+            <div className="space-y-2">
+              <h2 className="text-xl font-bold tracking-tight text-foreground flex items-center justify-center gap-2">
+                🛡️ Permission Denied
+              </h2>
+              <p className="text-[11px] font-bold text-destructive uppercase tracking-widest bg-destructive/5 py-1 px-3 rounded-full inline-block border border-destructive/10">
+                403 Forbidden
+              </p>
+            </div>
+
+            <div className="space-y-3 p-4 bg-background/50 border border-border/40 rounded-xl">
+              <div className="text-xs text-muted-foreground font-medium">Missing Permission</div>
+              <div className="font-mono text-sm text-foreground bg-muted/60 py-1.5 px-3 rounded-lg border border-border/50 select-all font-semibold inline-block">
+                {missingPermission}
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed pt-1">
+                You do not have the required permissions in your attached identity policies or groups to access this console page.
+              </p>
+            </div>
+
+            <Button
+              variant="outline"
+              className="w-full text-xs font-semibold cursor-pointer border-border hover:bg-muted/50"
+              onClick={() => window.location.href = '/dashboard'}
+            >
+              Return to Dashboard
+            </Button>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-background overflow-hidden text-foreground">
