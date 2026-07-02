@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import Sidebar from '../components/Sidebar';
 import api from '../services/api';
-import { Plus, Trash2, Edit3, Eye, ChevronLeft, AlertCircle, Search, X, UserPlus, UserMinus, ShieldAlert } from 'lucide-react';
+import { Plus, Trash2, Edit3, Eye, ChevronLeft, AlertCircle, Search, X, UserPlus, UserMinus, ShieldAlert, Check } from 'lucide-react';
 import { Group, User, Policy } from '../types/iam';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,6 +43,26 @@ const Groups = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => {
+        setError('');
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
+
+  useEffect(() => {
+    if (success) {
+      const timer = setTimeout(() => {
+        setSuccess('');
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [success]);
+
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // TanStack Query for groups
@@ -115,6 +135,7 @@ const Groups = () => {
       setDescription('');
       setShowCreateModal(false);
       fetchGroups();
+      setSuccess('Group created successfully.');
     } catch (err: any) {
       const msg = err.response?.data?.message || 'Failed to create group.';
       const status = err.response?.status ? ` (Status ${err.response.status})` : '';
@@ -134,6 +155,7 @@ const Groups = () => {
       });
       setIsEditingMeta(false);
       fetchGroupDetails(selectedGroup.id);
+      setSuccess('Group metadata updated.');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to update group metadata.');
     } finally {
@@ -149,6 +171,7 @@ const Groups = () => {
       setShowDeleteConfirm(false);
       setView('list');
       fetchGroups();
+      setSuccess('Group deleted successfully.');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to delete group.');
     } finally {
@@ -163,6 +186,7 @@ const Groups = () => {
       setShowAddUserDropdown(false);
       setUserSearchText('');
       fetchGroupDetails(selectedGroup.id);
+      setSuccess('User added to group.');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to add user to group.');
     }
@@ -173,6 +197,7 @@ const Groups = () => {
     try {
       await api.delete(`/iam/groups/${selectedGroup.id}/members/${userId}`);
       fetchGroupDetails(selectedGroup.id);
+      setSuccess('User removed from group.');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to remove user from group.');
     }
@@ -185,6 +210,7 @@ const Groups = () => {
       setShowAttachPolicyDropdown(false);
       setPolicySearchText('');
       fetchGroupDetails(selectedGroup.id);
+      setSuccess('Policy attached to group.');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to attach policy to group.');
     }
@@ -195,6 +221,7 @@ const Groups = () => {
     try {
       await api.delete(`/iam/groups/${selectedGroup.id}/policies/${policyId}`);
       fetchGroupDetails(selectedGroup.id);
+      setSuccess('Policy detached from group.');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to detach policy from group.');
     }
@@ -281,20 +308,54 @@ const Groups = () => {
         <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-[120px] -z-10" />
 
         <PageWrapper className="flex-1 flex flex-col min-h-0">
-          {/* Error alert */}
+          {/* Floating Toast Error alert */}
           <AnimatePresence>
             {error && (
               <motion.div
-                initial={{ opacity: 0, height: 0, marginBottom: 0 }}
-                animate={{ opacity: 1, height: 'auto', marginBottom: 24 }}
-                exit={{ opacity: 0, height: 0, marginBottom: 0 }}
-                className="p-3.5 bg-destructive/10 border border-destructive/20 text-destructive rounded-xl flex items-start gap-3 text-sm shrink-0 overflow-hidden"
+                initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                className="fixed top-6 right-6 z-50 p-4 bg-destructive/15 border border-destructive/25 text-destructive rounded-xl flex items-start gap-3 w-[400px] max-w-[calc(100vw-32px)] shadow-2xl backdrop-blur-md"
               >
-                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <span className="font-semibold">Operation Error:</span> {error}
+                <div className="w-5.5 h-5.5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center shrink-0 shadow-lg shadow-destructive/20 mt-0.5">
+                  <AlertCircle className="h-4 w-4" />
                 </div>
-                <button onClick={() => setError('')} className="text-muted-foreground hover:text-foreground transition-colors">
+                <div className="flex-1 min-w-0 pr-2">
+                  <div className="font-bold text-foreground text-sm mb-0.5">
+                    {error.toLowerCase().includes('bypass') || error.toLowerCase().includes('possess') || error.toLowerCase().includes('permission') ? 'Access Denied' : 'Security Alert'}
+                  </div>
+                  <p className="text-xs leading-relaxed text-destructive/90">{error}</p>
+                </div>
+                <button 
+                  onClick={() => setError('')} 
+                  className="text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg p-1 transition-colors shrink-0 cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Floating Toast Success Alert */}
+          <AnimatePresence>
+            {success && (
+              <motion.div
+                initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                className="fixed top-6 right-6 z-50 p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl flex items-start gap-3 w-[400px] max-w-[calc(100vw-32px)] shadow-2xl backdrop-blur-md"
+              >
+                <div className="w-5.5 h-5.5 bg-emerald-500 text-white rounded-full flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/20 mt-0.5">
+                  <Check className="h-4 w-4" />
+                </div>
+                <div className="flex-1 min-w-0 pr-2">
+                  <div className="font-bold text-foreground text-sm mb-0.5">Success</div>
+                  <p className="text-xs leading-relaxed text-emerald-400/90">{success}</p>
+                </div>
+                <button 
+                  onClick={() => setSuccess('')} 
+                  className="text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg p-1 transition-colors shrink-0 cursor-pointer"
+                >
                   <X className="h-4 w-4" />
                 </button>
               </motion.div>

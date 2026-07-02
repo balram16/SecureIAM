@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import Sidebar from '../components/Sidebar';
 import api from '../services/api';
-import { Plus, Trash2, Edit3, Eye, FileText, ChevronLeft, AlertCircle, Search, X, ShieldAlert, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Trash2, Edit3, Eye, FileText, ChevronLeft, AlertCircle, Search, X, ShieldAlert, ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { Policy, User, Group, Statement } from '../types/iam';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
 import { PageWrapper, fadeInUp, scaleIn } from '@/components/ui/motion';
+import { useAuth } from '../context/AuthContext';
 
 const VALID_ACTIONS = [
   // Resource Actions
@@ -112,25 +113,26 @@ const NON_IAM_GROUPS: Record<Exclude<Category, 'IAM'>, { name: string; actions: 
 
 const parseAttachmentError = (errorMsg: string) => {
   if (!errorMsg.includes('attached to')) return null;
-  
+
   const usersMatch = errorMsg.match(/users:\s*\[([^\]]+)\]/i);
   const groupsMatch = errorMsg.match(/groups:\s*\[([^\]]+)\]/i);
-  
+
   const users = usersMatch ? usersMatch[1].split(',').map(s => s.trim()) : [];
   const groups = groupsMatch ? groupsMatch[1].split(',').map(s => s.trim()) : [];
-  
+
   if (users.length === 0 && groups.length === 0) {
     return null;
   }
-  
+
   return { users, groups };
 };
 
 const Policies = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [view, setView] = useState<'list' | 'create' | 'edit' | 'detail'>('list');
   const [selectedPolicy, setSelectedPolicy] = useState<Policy | null>(null);
-  
+
   // Form fields
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -148,6 +150,27 @@ const Policies = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  useEffect(() => {
+    if (success) {
+      const timer = setTimeout(() => {
+        setSuccess('');
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [success]);
+
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => {
+        setError('');
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
+
   const [activeDropdownIndex, setActiveDropdownIndex] = useState<number | null>(null);
   const [actionSearch, setActionSearch] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -225,7 +248,7 @@ const Policies = () => {
     setName(policy.name);
     setDescription(policy.description || '');
     setType(policy.type);
-    
+
     // Parse statements
     const stmts = policy.statements?.statements || [];
     setStatements(stmts.map(s => ({
@@ -313,14 +336,16 @@ const Policies = () => {
 
       if (view === 'create') {
         await api.post('/iam/policies', payload);
+        setSuccess('Policy created successfully.');
       } else {
         await api.put(`/iam/policies/${selectedPolicy!.id}`, {
           name: name.trim(),
           description: description.trim(),
           statements
         });
+        setSuccess('Policy updated successfully.');
       }
-      
+
       setView('list');
       fetchPolicies();
     } catch (err: any) {
@@ -331,15 +356,63 @@ const Policies = () => {
   };
 
   const handleDelete = async () => {
-    setError('');
+    setDeleteError('');
     setLoading(true);
     try {
       await api.delete(`/iam/policies/${selectedPolicy!.id}`);
       setShowDeleteConfirm(false);
       setView('list');
       fetchPolicies();
+      setSuccess('Policy deleted successfully.');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to delete policy.');
+      setDeleteError(err.response?.data?.message || 'Failed to delete policy.');
+      setShowDeleteConfirm(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const triggerDeleteFlow = async (policy: Policy) => {
+    setLoading(true);
+    setError('');
+    setDeleteError('');
+    try {
+      const res = await api.get(`/iam/policies/${policy.id}`);
+      const fullPolicy = res.data.data;
+      setSelectedPolicy(fullPolicy);
+
+      const isManaged = fullPolicy.type === 'MANAGED';
+      const hasAttachments = (fullPolicy.users && fullPolicy.users.length > 0) ||
+        (fullPolicy.groups && fullPolicy.groups.length > 0);
+
+      if (isManaged && hasAttachments && !user?.isRoot) {
+        // Delete directly to get database validation error and trigger the warning modal view
+        try {
+          await api.delete(`/iam/policies/${fullPolicy.id}`);
+          setShowDeleteConfirm(false);
+          fetchPolicies();
+          setSuccess('Policy deleted successfully.');
+        } catch (err: any) {
+          setDeleteError(err.response?.data?.message || 'Failed to delete policy.');
+          setShowDeleteConfirm(true);
+        }
+      } else {
+        setShowDeleteConfirm(true);
+      }
+    } catch (err: any) {
+      const isForbidden = err.response?.status === 403 || 
+                          err.response?.data?.message?.toLowerCase().includes('forbidden') ||
+                          err.response?.data?.message?.toLowerCase().includes('permission');
+      
+      if (isForbidden) {
+        // Fallback: If the user doesn't have permission to check attachments (GetPolicy),
+        // we set selectedPolicy to the basic list policy object and show the confirmation modal.
+        // If it is indeed attached, the DELETE call will fail and show the attachments warning.
+        setSelectedPolicy(policy);
+        setShowDeleteConfirm(true);
+      } else {
+        setError(err.response?.data?.message || 'Failed to load policy details for deletion.');
+      }
     } finally {
       setLoading(false);
     }
@@ -350,7 +423,7 @@ const Policies = () => {
     return JSON.stringify({ statements }, null, 2);
   };
 
-  const filteredPolicies = policies.filter(p => 
+  const filteredPolicies = policies.filter(p =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase()))
   );
@@ -358,7 +431,7 @@ const Policies = () => {
   if (queryError && (queryError as any).response?.status === 403) {
     const message = (queryError as any).response?.data?.message || '';
     const missingPermission = message.match(/perform\s+([a-zA-Z0-9:]+)/)?.[1] || 'iam:ListPolicies';
-    
+
     return (
       <div className="flex h-screen bg-background overflow-hidden text-foreground">
         <Sidebar />
@@ -372,7 +445,7 @@ const Policies = () => {
             className="max-w-md w-full bg-card border border-destructive/20 rounded-2xl shadow-2xl p-8 text-center space-y-6 relative overflow-hidden"
           >
             <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-destructive via-red-500 to-destructive" />
-            
+
             <div className="mx-auto w-16 h-16 bg-destructive/10 text-destructive border border-destructive/20 rounded-full flex items-center justify-center shadow-lg shadow-destructive/10 animate-pulse">
               <ShieldAlert className="h-8 w-8" />
             </div>
@@ -418,20 +491,54 @@ const Policies = () => {
         <div className="absolute top-0 right-0 w-96 h-96 bg-purple-600/5 rounded-full blur-[120px] -z-10" />
 
         <PageWrapper className="flex-1 flex flex-col min-h-0">
-          {/* Error alert */}
+          {/* Floating Toast Error alert */}
           <AnimatePresence>
             {error && (
               <motion.div
-                initial={{ opacity: 0, height: 0, marginBottom: 0 }}
-                animate={{ opacity: 1, height: 'auto', marginBottom: 24 }}
-                exit={{ opacity: 0, height: 0, marginBottom: 0 }}
-                className="p-3.5 bg-destructive/10 border border-destructive/20 text-destructive rounded-xl flex items-start gap-3 text-sm shrink-0 overflow-hidden"
+                initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                className="fixed top-6 right-6 z-50 p-4 bg-destructive/15 border border-destructive/25 text-destructive rounded-xl flex items-start gap-3 w-[400px] max-w-[calc(100vw-32px)] shadow-2xl backdrop-blur-md"
               >
-                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <span className="font-semibold">Operation Error:</span> {error}
+                <div className="w-5.5 h-5.5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center shrink-0 shadow-lg shadow-destructive/20 mt-0.5">
+                  <AlertCircle className="h-4 w-4" />
                 </div>
-                <button onClick={() => setError('')} className="text-muted-foreground hover:text-foreground transition-colors">
+                <div className="flex-1 min-w-0 pr-2">
+                  <div className="font-bold text-foreground text-sm mb-0.5">
+                    {error.toLowerCase().includes('bypass') || error.toLowerCase().includes('possess') || error.toLowerCase().includes('permission') ? 'Access Denied' : 'Security Alert'}
+                  </div>
+                  <p className="text-xs leading-relaxed text-destructive/90">{error}</p>
+                </div>
+                <button
+                  onClick={() => setError('')}
+                  className="text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg p-1 transition-colors shrink-0 cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Floating Toast Success Alert */}
+          <AnimatePresence>
+            {success && (
+              <motion.div
+                initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                className="fixed top-6 right-6 z-50 p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl flex items-start gap-3 w-[400px] max-w-[calc(100vw-32px)] shadow-2xl backdrop-blur-md"
+              >
+                <div className="w-5.5 h-5.5 bg-emerald-500 text-white rounded-full flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/20 mt-0.5">
+                  <Check className="h-4 w-4" />
+                </div>
+                <div className="flex-1 min-w-0 pr-2">
+                  <div className="font-bold text-foreground text-sm mb-0.5">Success</div>
+                  <p className="text-xs leading-relaxed text-emerald-400/90">{success}</p>
+                </div>
+                <button
+                  onClick={() => setSuccess('')}
+                  className="text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg p-1 transition-colors shrink-0 cursor-pointer"
+                >
                   <X className="h-4 w-4" />
                 </button>
               </motion.div>
@@ -539,6 +646,15 @@ const Policies = () => {
                                   >
                                     <Edit3 className="h-4 w-4" />
                                   </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => triggerDeleteFlow(p)}
+                                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    title="Delete Policy"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
                                 </div>
                               </TableCell>
                             </TableRow>
@@ -581,14 +697,10 @@ const Policies = () => {
                         <FileText className="h-4 w-4 text-primary" />
                         Policy Document JSON
                       </CardTitle>
-            <div className="flex gap-2">
+                      <div className="flex gap-2">
                         <Button variant="outline" size="sm" onClick={() => handleEditOpen(selectedPolicy)} className="gap-1.5 h-7 text-xs">
                           <Edit3 className="h-3 w-3" />
                           Edit
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => { setError(''); setShowDeleteConfirm(true); }} className="gap-1.5 h-7 text-xs text-destructive hover:text-destructive border-destructive/20 hover:bg-destructive/10">
-                          <Trash2 className="h-3 w-3" />
-                          Delete
                         </Button>
                       </div>
                     </div>
@@ -603,7 +715,7 @@ const Policies = () => {
                           <span className="w-2.5 h-2.5 rounded-full bg-[#27c93f]" />
                         </div>
                       </div>
-                      
+
                       {/* Editor Area */}
                       <div className="flex-1 overflow-auto p-4 font-mono text-xs text-emerald-400 select-all leading-relaxed bg-[#1e1e1e]">
                         <pre>{JSON.stringify(selectedPolicy.statements, null, 2)}</pre>
@@ -653,95 +765,6 @@ const Policies = () => {
                 </Card>
               </div>
 
-              {/* Delete Confirmation Modal */}
-              <AnimatePresence>
-                {showDeleteConfirm && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
-                  >
-                    <motion.div
-                      variants={scaleIn}
-                      initial="initial"
-                      animate="animate"
-                      exit="exit"
-                      className="bg-card border border-border rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4"
-                    >
-                      <h3 className="text-lg font-bold text-foreground">Delete Access Policy</h3>
-                      
-                      {error && (() => {
-                         const attachments = parseAttachmentError(error);
-                         if (attachments) {
-                           return (
-                             <div className="p-4 bg-destructive/10 border border-destructive/20 text-destructive rounded-xl space-y-3 text-xs">
-                               <div className="flex items-center gap-2 font-bold text-sm">
-                                 <AlertCircle className="h-4.5 w-4.5 text-destructive shrink-0" />
-                                 <span>Policy In Use</span>
-                               </div>
-                               <p className="text-[11px] text-muted-foreground leading-normal">
-                                 This managed policy is currently active and cannot be deleted until it is detached from:
-                               </p>
-                               
-                               <div className="space-y-2 pt-1">
-                                 {attachments.users.length > 0 && (
-                                   <div className="flex flex-wrap items-center gap-1.5">
-                                     <span className="font-semibold text-foreground/80 mr-1">Users:</span>
-                                     {attachments.users.map(u => (
-                                       <Badge key={u} variant="outline" className="bg-background border-destructive/25 text-destructive text-[10px] font-mono px-2 py-0.5">
-                                         {u}
-                                       </Badge>
-                                     ))}
-                                   </div>
-                                 )}
-                                 {attachments.groups.length > 0 && (
-                                   <div className="flex flex-wrap items-center gap-1.5">
-                                     <span className="font-semibold text-foreground/80 mr-1">Groups:</span>
-                                     {attachments.groups.map(g => (
-                                       <Badge key={g} variant="outline" className="bg-background border-destructive/25 text-destructive text-[10px] font-mono px-2 py-0.5">
-                                         {g}
-                                       </Badge>
-                                     ))}
-                                   </div>
-                                 )}
-                               </div>
-                               
-                               <p className="text-[10px] font-bold text-destructive/80 pt-1.5 border-t border-destructive/10">
-                                 ➔ Detach the policy from these entities first and try again.
-                               </p>
-                             </div>
-                           );
-                         }
-                         
-                         return (
-                           <div className="p-3 bg-destructive/10 border border-destructive/20 text-destructive rounded-xl flex items-start gap-2.5 text-xs">
-                             <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                             <div className="flex-1">
-                               <span className="font-semibold">Error:</span> {error}
-                             </div>
-                             <button type="button" onClick={() => setError('')} className="text-muted-foreground hover:text-foreground">
-                               <X className="h-3.5 w-3.5" />
-                             </button>
-                           </div>
-                         );
-                       })()}
-
-                      <p className="text-sm text-muted-foreground">
-                        Are you sure you want to delete policy <span className="text-foreground font-semibold">{selectedPolicy.name}</span>? This action is permanent and will detach it from all groups or users.
-                      </p>
-                      <div className="flex justify-end gap-3 pt-2">
-                        <Button variant="outline" onClick={() => { setError(''); setShowDeleteConfirm(false); }}>
-                          Cancel
-                        </Button>
-                        <Button variant="destructive" onClick={handleDelete} disabled={loading}>
-                          {loading ? 'Deleting...' : 'Delete Policy'}
-                        </Button>
-                      </div>
-                    </motion.div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </div>
           )}
           {/* CREATE / EDIT VIEW (POLICY BUILDER) */}
@@ -763,9 +786,23 @@ const Policies = () => {
                     {view === 'create' ? 'Create New Policy' : `Edit Policy: ${selectedPolicy?.name}`}
                   </h1>
                 </div>
-                <Button type="submit" disabled={loading}>
-                  {loading ? 'Saving...' : 'Save Policy'}
-                </Button>
+                <div className="flex items-center gap-2">
+                  {view === 'edit' && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => triggerDeleteFlow(selectedPolicy!)}
+                      disabled={loading}
+                      className="gap-1.5 h-9 text-xs text-destructive hover:text-destructive border-destructive/20 hover:bg-destructive/10"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Delete Policy
+                    </Button>
+                  )}
+                  <Button type="submit" disabled={loading}>
+                    {loading ? 'Saving...' : 'Save Policy'}
+                  </Button>
+                </div>
               </div>
 
               {/* Split Content */}
@@ -826,11 +863,11 @@ const Policies = () => {
                               <option value="">-- Choose target --</option>
                               {attachToType === 'user'
                                 ? usersList.map(u => (
-                                    <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
-                                  ))
+                                  <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                                ))
                                 : groupsList.map(g => (
-                                    <option key={g.id} value={g.id}>{g.name}</option>
-                                  ))
+                                  <option key={g.id} value={g.id}>{g.name}</option>
+                                ))
                               }
                             </select>
                           </div>
@@ -891,22 +928,20 @@ const Policies = () => {
                                 <button
                                   type="button"
                                   onClick={() => handleStatementChange(stmtIndex, 'Effect', 'Allow')}
-                                  className={`flex-1 text-center py-1.5 text-xs font-bold rounded-md cursor-pointer transition-all ${
-                                    stmt.Effect === 'Allow'
+                                  className={`flex-1 text-center py-1.5 text-xs font-bold rounded-md cursor-pointer transition-all ${stmt.Effect === 'Allow'
                                       ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm'
                                       : 'text-muted-foreground hover:text-foreground'
-                                  }`}
+                                    }`}
                                 >
                                   Allow
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => handleStatementChange(stmtIndex, 'Effect', 'Deny')}
-                                  className={`flex-1 text-center py-1.5 text-xs font-bold rounded-md cursor-pointer transition-all ${
-                                    stmt.Effect === 'Deny'
+                                  className={`flex-1 text-center py-1.5 text-xs font-bold rounded-md cursor-pointer transition-all ${stmt.Effect === 'Deny'
                                       ? 'bg-destructive/10 text-destructive border border-destructive/20 shadow-sm'
                                       : 'text-muted-foreground hover:text-foreground'
-                                  }`}
+                                    }`}
                                 >
                                   Deny
                                 </button>
@@ -935,9 +970,8 @@ const Policies = () => {
                                     setActionSearch('');
                                     setActiveDropdownIndex(activeDropdownIndex === stmtIndex ? null : stmtIndex);
                                   }}
-                                  className={`w-full justify-between h-10 px-3.5 text-xs bg-background border border-border/80 hover:bg-muted/10 hover:border-border transition-all rounded-lg ${
-                                    activeDropdownIndex === stmtIndex ? 'ring-2 ring-primary/20 border-primary/45 bg-muted/5' : 'shadow-sm'
-                                  }`}
+                                  className={`w-full justify-between h-10 px-3.5 text-xs bg-background border border-border/80 hover:bg-muted/10 hover:border-border transition-all rounded-lg ${activeDropdownIndex === stmtIndex ? 'ring-2 ring-primary/20 border-primary/45 bg-muted/5' : 'shadow-sm'
+                                    }`}
                                 >
                                   <span>Select action permissions...</span>
                                   {activeDropdownIndex === stmtIndex ? (
@@ -946,129 +980,125 @@ const Policies = () => {
                                     <ChevronDown className="h-4 w-4 text-muted-foreground" />
                                   )}
                                 </Button>
-                                 <AnimatePresence>
-                                   {activeDropdownIndex === stmtIndex && (
-                                     <motion.div
-                                       initial={{ opacity: 0, y: -4 }}
-                                       animate={{ opacity: 1, y: 0 }}
-                                       exit={{ opacity: 0, y: -4 }}
-                                       className="absolute left-0 right-0 mt-2 p-4 bg-background border border-border/80 rounded-xl shadow-xl z-30 flex flex-col max-h-[380px] overflow-hidden"
-                                     >
-                                       {/* Tab Header */}
-                                       <div className="flex items-center justify-between gap-4 border-b border-border/40 pb-3 mb-3 shrink-0">
-                                         <div className="flex items-center gap-1 bg-muted/40 p-0.5 rounded-lg border border-border/50">
-                                           {CATEGORY_TABS.map((cat) => (
-                                             <button
-                                               key={cat}
-                                               type="button"
-                                               onClick={() => setActiveCategory(cat)}
-                                               className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
-                                                 activeCategory === cat
-                                                   ? 'bg-background text-primary shadow-sm border border-border/10'
-                                                   : 'text-muted-foreground hover:text-foreground'
-                                               }`}
-                                             >
-                                               {cat}
-                                             </button>
-                                           ))}
-                                         </div>
-                                       </div>
+                                <AnimatePresence>
+                                  {activeDropdownIndex === stmtIndex && (
+                                    <motion.div
+                                      initial={{ opacity: 0, y: -4 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      exit={{ opacity: 0, y: -4 }}
+                                      className="absolute left-0 right-0 mt-2 p-4 bg-background border border-border/80 rounded-xl shadow-xl z-30 flex flex-col max-h-[380px] overflow-hidden"
+                                    >
+                                      {/* Tab Header */}
+                                      <div className="flex items-center justify-between gap-4 border-b border-border/40 pb-3 mb-3 shrink-0">
+                                        <div className="flex items-center gap-1 bg-muted/40 p-0.5 rounded-lg border border-border/50">
+                                          {CATEGORY_TABS.map((cat) => (
+                                            <button
+                                              key={cat}
+                                              type="button"
+                                              onClick={() => setActiveCategory(cat)}
+                                              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${activeCategory === cat
+                                                  ? 'bg-background text-primary shadow-sm border border-border/10'
+                                                  : 'text-muted-foreground hover:text-foreground'
+                                                }`}
+                                            >
+                                              {cat}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      </div>
 
-                                       {/* Action Checkboxes List */}
-                                       <div className="flex-1 overflow-y-auto pr-1">
-                                         {activeCategory === 'IAM' ? (
-                                           <div className="grid grid-cols-3 gap-5">
-                                             {IAM_COLUMNS.map((col, colIdx) => (
-                                               <div key={colIdx} className="space-y-3.5">
-                                                 {col.groups.map((group) => (
-                                                   <div key={group.name} className="space-y-1">
-                                                     <div className="text-[9px] font-bold text-muted-foreground/80 uppercase tracking-widest border-b border-border/20 pb-0.5 mb-1">
-                                                       {group.name}
-                                                     </div>
-                                                     <div className="space-y-0.5">
-                                                       {group.actions.map((act) => {
-                                                         const isChecked = stmt.Action.includes(act);
-                                                         const isRestricted = act === 'iam:PutUserBoundary' || act === 'iam:DeleteUserBoundary';
-                                                         return (
-                                                           <label
-                                                             key={act}
-                                                             title={isRestricted ? "Root only — cannot be delegated" : undefined}
-                                                             className={`flex items-center gap-2.5 px-2.5 py-1.5 hover:bg-primary/5 rounded-lg text-xs transition-all ${
-                                                               isRestricted ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
-                                                             } ${
-                                                               isChecked ? 'bg-primary/5 text-primary font-medium' : 'text-foreground/80 hover:text-foreground'
-                                                             }`}
-                                                           >
-                                                             <input
-                                                               type="checkbox"
-                                                               checked={isChecked}
-                                                               disabled={isRestricted}
-                                                               onChange={() => !isRestricted && handleToggleAction(stmtIndex, act)}
-                                                               className="rounded border-border text-primary focus:ring-0 focus:ring-offset-0 bg-background h-3.5 w-3.5 disabled:opacity-50"
-                                                             />
-                                                             <span className="font-mono text-[11.5px] flex items-center justify-between w-full">
-                                                               <span>{act}</span>
-                                                               {isRestricted && (
-                                                                 <span className="text-[8px] bg-rose-500/10 text-rose-500 font-semibold px-1 py-0.5 rounded tracking-wide shrink-0 font-sans ml-1">
-                                                                   Root Only
-                                                                 </span>
-                                                               )}
-                                                             </span>
-                                                           </label>
-                                                         );
-                                                       })}
-                                                     </div>
-                                                   </div>
-                                                 ))}
-                                               </div>
-                                             ))}
-                                           </div>
-                                         ) : (
-                                           <div className="space-y-2">
-                                             {NON_IAM_GROUPS[activeCategory as Exclude<Category, 'IAM'>].map((group) => (
-                                               <div key={group.name} className="space-y-1.5">
-                                                 <div className="text-[9px] font-bold text-muted-foreground/80 uppercase tracking-widest border-b border-border/20 pb-0.5 mb-1.5">
-                                                   {group.name}
-                                                 </div>
-                                                 <div className="grid grid-cols-3 gap-2.5">
-                                                   {group.actions.map((act) => {
-                                                     const isChecked = stmt.Action.includes(act);
-                                                     return (
-                                                       <label
-                                                         key={act}
-                                                         className={`flex items-center gap-2.5 px-2.5 py-1.5 hover:bg-primary/5 rounded-lg cursor-pointer text-xs transition-all ${
-                                                           isChecked ? 'bg-primary/5 text-primary font-medium' : 'text-foreground/80 hover:text-foreground'
-                                                         }`}
-                                                       >
-                                                         <input
-                                                           type="checkbox"
-                                                           checked={isChecked}
-                                                           onChange={() => handleToggleAction(stmtIndex, act)}
-                                                           className="rounded border-border text-primary focus:ring-0 focus:ring-offset-0 bg-background h-3.5 w-3.5"
-                                                         />
-                                                         <span className="font-mono text-[11.5px]">{act}</span>
-                                                       </label>
-                                                     );
-                                                   })}
-                                                 </div>
-                                               </div>
-                                             ))}
-                                           </div>
-                                         )}
-                                       </div>
+                                      {/* Action Checkboxes List */}
+                                      <div className="flex-1 overflow-y-auto pr-1">
+                                        {activeCategory === 'IAM' ? (
+                                          <div className="grid grid-cols-3 gap-5">
+                                            {IAM_COLUMNS.map((col, colIdx) => (
+                                              <div key={colIdx} className="space-y-3.5">
+                                                {col.groups.map((group) => (
+                                                  <div key={group.name} className="space-y-1">
+                                                    <div className="text-[9px] font-bold text-muted-foreground/80 uppercase tracking-widest border-b border-border/20 pb-0.5 mb-1">
+                                                      {group.name}
+                                                    </div>
+                                                    <div className="space-y-0.5">
+                                                      {group.actions.map((act) => {
+                                                        const isChecked = stmt.Action.includes(act);
+                                                        const isRestricted = act === 'iam:PutUserBoundary' || act === 'iam:DeleteUserBoundary';
+                                                        return (
+                                                          <label
+                                                            key={act}
+                                                            title={isRestricted ? "Root only — cannot be delegated" : undefined}
+                                                            className={`flex items-center gap-2.5 px-2.5 py-1.5 hover:bg-primary/5 rounded-lg text-xs transition-all ${isRestricted ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
+                                                              } ${isChecked ? 'bg-primary/5 text-primary font-medium' : 'text-foreground/80 hover:text-foreground'
+                                                              }`}
+                                                          >
+                                                            <input
+                                                              type="checkbox"
+                                                              checked={isChecked}
+                                                              disabled={isRestricted}
+                                                              onChange={() => !isRestricted && handleToggleAction(stmtIndex, act)}
+                                                              className="rounded border-border text-primary focus:ring-0 focus:ring-offset-0 bg-background h-3.5 w-3.5 disabled:opacity-50"
+                                                            />
+                                                            <span className="font-mono text-[11.5px] flex items-center justify-between w-full">
+                                                              <span>{act}</span>
+                                                              {isRestricted && (
+                                                                <span className="text-[8px] bg-rose-500/10 text-rose-500 font-semibold px-1 py-0.5 rounded tracking-wide shrink-0 font-sans ml-1">
+                                                                  Root Only
+                                                                </span>
+                                                              )}
+                                                            </span>
+                                                          </label>
+                                                        );
+                                                      })}
+                                                    </div>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        ) : (
+                                          <div className="space-y-2">
+                                            {NON_IAM_GROUPS[activeCategory as Exclude<Category, 'IAM'>].map((group) => (
+                                              <div key={group.name} className="space-y-1.5">
+                                                <div className="text-[9px] font-bold text-muted-foreground/80 uppercase tracking-widest border-b border-border/20 pb-0.5 mb-1.5">
+                                                  {group.name}
+                                                </div>
+                                                <div className="grid grid-cols-3 gap-2.5">
+                                                  {group.actions.map((act) => {
+                                                    const isChecked = stmt.Action.includes(act);
+                                                    return (
+                                                      <label
+                                                        key={act}
+                                                        className={`flex items-center gap-2.5 px-2.5 py-1.5 hover:bg-primary/5 rounded-lg cursor-pointer text-xs transition-all ${isChecked ? 'bg-primary/5 text-primary font-medium' : 'text-foreground/80 hover:text-foreground'
+                                                          }`}
+                                                      >
+                                                        <input
+                                                          type="checkbox"
+                                                          checked={isChecked}
+                                                          onChange={() => handleToggleAction(stmtIndex, act)}
+                                                          className="rounded border-border text-primary focus:ring-0 focus:ring-offset-0 bg-background h-3.5 w-3.5"
+                                                        />
+                                                        <span className="font-mono text-[11.5px]">{act}</span>
+                                                      </label>
+                                                    );
+                                                  })}
+                                                </div>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
 
-                                       <Button
-                                         type="button"
-                                         variant="ghost"
-                                         size="sm"
-                                         onClick={() => setActiveDropdownIndex(null)}
-                                         className="mt-3.5 h-8 text-[11px] font-semibold cursor-pointer hover:bg-muted/50 border border-border/40 shrink-0"
-                                       >
-                                         Close Selector Drawer
-                                       </Button>
-                                     </motion.div>
-                                   )}
-                                 </AnimatePresence>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setActiveDropdownIndex(null)}
+                                        className="mt-3.5 h-8 text-[11px] font-semibold cursor-pointer hover:bg-muted/50 border border-border/40 shrink-0"
+                                      >
+                                        Close Selector Drawer
+                                      </Button>
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
                               </div>
                             </div>
                           </div>
@@ -1096,7 +1126,7 @@ const Policies = () => {
                           <span className="w-2.5 h-2.5 rounded-full bg-[#27c93f]" />
                         </div>
                       </div>
-                      
+
                       {/* Editor Area */}
                       <div className="flex-1 overflow-auto p-4 font-mono text-[11px] text-emerald-400 select-all leading-relaxed bg-[#1e1e1e]">
                         <pre>{getJsonPreview()}</pre>
@@ -1107,6 +1137,100 @@ const Policies = () => {
               </div>
             </form>
           )}
+
+          {/* Delete Confirmation Modal */}
+          <AnimatePresence>
+            {showDeleteConfirm && selectedPolicy && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+              >
+                <motion.div
+                  variants={scaleIn}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  className="bg-card border border-border rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4"
+                >
+                  <h3 className="text-lg font-bold text-foreground">Delete Access Policy</h3>
+
+                  {deleteError && (() => {
+                    const attachments = parseAttachmentError(deleteError);
+                    if (attachments) {
+                      return (
+                        <div className="p-4 bg-destructive/10 border border-destructive/20 text-destructive rounded-xl space-y-3 text-xs">
+                          <div className="flex items-center gap-2 font-bold text-sm">
+                            <AlertCircle className="h-4.5 w-4.5 text-destructive shrink-0" />
+                            <span>Policy In Use</span>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground leading-normal">
+                            This managed policy is currently active and cannot be deleted until it is detached from:
+                          </p>
+
+                          <div className="space-y-2 pt-1">
+                            {attachments.users.length > 0 && (
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="font-semibold text-foreground/80 mr-1">Users:</span>
+                                {attachments.users.map(u => (
+                                  <Badge key={u} variant="outline" className="bg-background border-destructive/25 text-destructive text-[10px] font-mono px-2 py-0.5">
+                                    {u}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                            {attachments.groups.length > 0 && (
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="font-semibold text-foreground/80 mr-1">Groups:</span>
+                                {attachments.groups.map(g => (
+                                  <Badge key={g} variant="outline" className="bg-background border-destructive/25 text-destructive text-[10px] font-mono px-2 py-0.5">
+                                    {g}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          <p className="text-[10px] font-bold text-destructive/80 pt-1.5 border-t border-destructive/10">
+                            ➔ Detach the policy from these entities first and try again.
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="p-3 bg-destructive/10 border border-destructive/20 text-destructive rounded-xl flex items-start gap-2.5 text-xs">
+                        <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                          <span className="font-semibold">Error:</span> {deleteError}
+                        </div>
+                        <button type="button" onClick={() => setDeleteError('')} className="text-muted-foreground hover:text-foreground">
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })()}
+
+                  {!deleteError && (
+                    <p className="text-sm text-muted-foreground">
+                      Are you sure you want to delete policy <span className="text-foreground font-semibold">{selectedPolicy.name}</span>? This action is permanent and cannot be undone.
+                    </p>
+                  )}
+                  <div className="flex justify-end gap-3 pt-2">
+                    <Button variant="outline" onClick={() => { setDeleteError(''); setShowDeleteConfirm(false); }}>
+                      {deleteError ? 'Close' : 'Cancel'}
+                    </Button>
+                    {!parseAttachmentError(deleteError) && (
+                      <Button variant="destructive" onClick={() => handleDelete()} disabled={loading}>
+                        {loading ? 'Deleting...' : 'Delete Policy'}
+                      </Button>
+                    )}
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </PageWrapper>
       </div>
     </div>

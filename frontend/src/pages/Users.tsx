@@ -52,6 +52,25 @@ const Users = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  useEffect(() => {
+    if (success) {
+      const timer = setTimeout(() => {
+        setSuccess('');
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [success]);
+
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => {
+        setError('');
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
 
   // TanStack Query for users list
   const { data: users = [], isLoading: isUsersLoading, error: queryError } = useQuery<User[]>({
@@ -108,6 +127,7 @@ const Users = () => {
       setShowAttachPolicyDropdown(false);
       setPolicySearchText('');
       fetchUserDetails(selectedUser.id);
+      setSuccess('Policy attached to user.');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to attach policy directly.');
     }
@@ -118,6 +138,7 @@ const Users = () => {
     try {
       await api.delete(`/iam/users/${selectedUser.id}/policies/${policyId}`);
       fetchUserDetails(selectedUser.id);
+      setSuccess('Policy detached from user.');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to detach policy.');
     }
@@ -130,6 +151,7 @@ const Users = () => {
       setShowBoundaryDropdown(false);
       setBoundarySearchText('');
       fetchUserDetails(selectedUser.id);
+      setSuccess('Permission boundary set successfully.');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to set permission boundary.');
     }
@@ -140,6 +162,7 @@ const Users = () => {
     try {
       await api.delete(`/iam/users/${selectedUser.id}/boundary`);
       fetchUserDetails(selectedUser.id);
+      setSuccess('Permission boundary removed.');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to remove permission boundary.');
     }
@@ -231,20 +254,54 @@ const Users = () => {
         <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-[120px] -z-10" />
 
         <PageWrapper className="flex-1 flex flex-col min-h-0">
-          {/* Error alert */}
+          {/* Floating Toast Error alert */}
           <AnimatePresence>
             {error && (
               <motion.div
-                initial={{ opacity: 0, height: 0, marginBottom: 0 }}
-                animate={{ opacity: 1, height: 'auto', marginBottom: 24 }}
-                exit={{ opacity: 0, height: 0, marginBottom: 0 }}
-                className="p-3.5 bg-destructive/10 border border-destructive/20 text-destructive rounded-xl flex items-start gap-3 text-sm shrink-0 overflow-hidden"
+                initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                className="fixed top-6 right-6 z-50 p-4 bg-destructive/15 border border-destructive/25 text-destructive rounded-xl flex items-start gap-3 w-[400px] max-w-[calc(100vw-32px)] shadow-2xl backdrop-blur-md"
               >
-                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <span className="font-semibold">Security Alert:</span> {error}
+                <div className="w-5.5 h-5.5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center shrink-0 shadow-lg shadow-destructive/20 mt-0.5">
+                  <AlertCircle className="h-4 w-4" />
                 </div>
-                <button onClick={() => setError('')} className="text-muted-foreground hover:text-foreground transition-colors">
+                <div className="flex-1 min-w-0 pr-2">
+                  <div className="font-bold text-foreground text-sm mb-0.5">
+                    {error.toLowerCase().includes('bypass') || error.toLowerCase().includes('possess') || error.toLowerCase().includes('permission') ? 'Access Denied' : 'Security Alert'}
+                  </div>
+                  <p className="text-xs leading-relaxed text-destructive/90">{error}</p>
+                </div>
+                <button 
+                  onClick={() => setError('')} 
+                  className="text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg p-1 transition-colors shrink-0 cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Floating Toast Success Alert */}
+          <AnimatePresence>
+            {success && (
+              <motion.div
+                initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                className="fixed top-6 right-6 z-50 p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl flex items-start gap-3 w-[400px] max-w-[calc(100vw-32px)] shadow-2xl backdrop-blur-md"
+              >
+                <div className="w-5.5 h-5.5 bg-emerald-500 text-white rounded-full flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/20 mt-0.5">
+                  <Check className="h-4 w-4" />
+                </div>
+                <div className="flex-1 min-w-0 pr-2">
+                  <div className="font-bold text-foreground text-sm mb-0.5">Success</div>
+                  <p className="text-xs leading-relaxed text-emerald-400/90">{success}</p>
+                </div>
+                <button 
+                  onClick={() => setSuccess('')} 
+                  className="text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg p-1 transition-colors shrink-0 cursor-pointer"
+                >
                   <X className="h-4 w-4" />
                 </button>
               </motion.div>

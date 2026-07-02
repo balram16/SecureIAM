@@ -43,17 +43,17 @@ const Dashboard = () => {
       actions: [
         { name: 'List Active Alerts', action: 'alerts:List', method: 'GET', url: '/alerts' },
         { name: 'Read Alert Specs', action: 'alerts:Read', method: 'GET', url: '/alerts/123' },
-        { name: 'Trigger Manual Alert', action: 'alerts:Create', method: 'POST', url: '/alerts', body: {} },
-        { name: 'Acknowledge Incident', action: 'alerts:Acknowledge', method: 'PATCH', url: '/alerts/123/acknowledge', body: {} },
-        { name: 'Delete Resolved Alert', action: 'alerts:Delete', method: 'DELETE', url: '/alerts/123' },
+        { name: 'Create Alert', action: 'alerts:Create', method: 'POST', url: '/alerts', body: {} },
+        { name: 'Acknowledge Alert', action: 'alerts:Acknowledge', method: 'PATCH', url: '/alerts/123/acknowledge', body: {} },
+        { name: 'Delete Alert', action: 'alerts:Delete', method: 'DELETE', url: '/alerts/123' },
       ]
     },
     {
       title: 'Global Settings',
       description: 'System preferences and tenant configurations.',
       actions: [
-        { name: 'Read Preferences', action: 'settings:Read', method: 'GET', url: '/settings' },
-        { name: 'Update Core Settings', action: 'settings:Update', method: 'PUT', url: '/settings', body: {} },
+        { name: 'Read System Settings', action: 'settings:Read', method: 'GET', url: '/settings' },
+        { name: 'Update System Settings', action: 'settings:Update', method: 'PUT', url: '/settings', body: {} },
       ]
     },
     {
@@ -61,7 +61,7 @@ const Dashboard = () => {
       description: 'Inflexible compliance ledger storing admin activity logs.',
       actions: [
         { name: 'List Action Logs', action: 'audit:List', method: 'GET', url: '/audit' },
-        { name: 'Read Logs Specifics', action: 'audit:Read', method: 'GET', url: '/audit/123' },
+        { name: 'View Audit Log Details', action: 'audit:Read', method: 'GET', url: '/audit/123' },
       ]
     }
   ];

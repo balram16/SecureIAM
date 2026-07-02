@@ -26,7 +26,7 @@ An enterprise-grade, self-administered Identity and Access Management (IAM) cons
 - **State & Queries**: [TanStack React Query](https://tanstack.com/query/latest) for efficient server-state sync
 - **Styling**: [Tailwind CSS](https://tailwindcss.com/) for a sleek, responsive, and dark-themed UI console
 - **Animations**: [Framer Motion](https://www.framer.com/motion/) for premium micro-interactions and smooth tab transitions
-- **HTTP Client**: [Axios](https://axios-http.com/) configured with request/response interceptors for silent JWT refresh token rotation
+- **HTTP Client**: [Axios](https://axios-http.com/) for making HTTP requests and handling API communication.
 
 ### Backend Layer
 - **Runtime**: [Node.js](https://nodejs.org/) & [Express](https://expressjs.com/) RESTful Web Services
