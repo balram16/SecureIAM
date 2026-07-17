@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Sidebar from '../components/Sidebar';
 import TopNavbar from '../components/TopNavbar';
 import api from '../services/api';
-import { ChevronLeft, ChevronDown, ChevronUp, AlertCircle, Search, X, Check, Eye, Plus, ShieldCheck, Shield, Trash2, Key, Users as UsersIcon, ShieldAlert, UserPlus } from 'lucide-react';
+import { ChevronLeft, ChevronDown, ChevronUp, AlertCircle, Search, X, Check, Eye, EyeOff, Lock, Plus, ShieldCheck, Shield, Trash2, Key, Users as UsersIcon, ShieldAlert, UserPlus } from 'lucide-react';
 import { User, Policy } from '../types/iam';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -58,11 +58,17 @@ const Users = () => {
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
+  const [showNewUserPassword, setShowNewUserPassword] = useState(false);
   const [selectedPoliciesForNewUser, setSelectedPoliciesForNewUser] = useState<string[]>([]);
   const [selectedGroupsForNewUser, setSelectedGroupsForNewUser] = useState<string[]>([]);
   const [selectedBoundaryForNewUser, setSelectedBoundaryForNewUser] = useState<string>('');
   const [createUserError, setCreateUserError] = useState('');
   const [allGroups, setAllGroups] = useState<any[]>([]);
+
+  const hasMinLength = newUserPassword.length >= 8;
+  const hasNumber = /[0-9]/.test(newUserPassword);
+  const hasSpecialChar = /[^A-Za-z0-9]/.test(newUserPassword);
+  const strengthCount = [hasMinLength, hasNumber, hasSpecialChar].filter(Boolean).length;
 
   useEffect(() => {
     if (showCreateUserModal) {
@@ -972,17 +978,74 @@ const Users = () => {
 
                         <div className="space-y-1">
                           <Label htmlFor="create-pass" className="text-xs">Password</Label>
-                          <Input
-                            id="create-pass"
-                            type="password"
-                            value={newUserPassword}
-                            onChange={e => setNewUserPassword(e.target.value)}
-                            placeholder="Min 8 chars, 1 digit, 1 special char"
-                            required
-                          />
-                          <p className="text-[9px] text-muted-foreground/80 mt-1">
-                            Password must contain at least 8 characters, one digit, and one special character (e.g. !@#$).
-                          </p>
+                          <div className="relative">
+                            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                              id="create-pass"
+                              type={showNewUserPassword ? 'text' : 'password'}
+                              value={newUserPassword}
+                              onChange={e => setNewUserPassword(e.target.value)}
+                              placeholder="Min 8 chars, 1 digit, 1 special char"
+                              className="pl-10 pr-10 bg-background/50 focus-visible:ring-primary/30"
+                              required
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowNewUserPassword(!showNewUserPassword)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                            >
+                              {showNewUserPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                          </div>
+
+                          {newUserPassword.length > 0 && (
+                            <div className="mt-2.5 space-y-2.5 p-3.5 bg-muted/20 border border-border/40 rounded-xl">
+                              <div className="flex items-center justify-between text-[11px] font-semibold">
+                                <span className="text-muted-foreground">Password Strength:</span>
+                                <span className={
+                                  strengthCount === 1 ? 'text-destructive' :
+                                  strengthCount === 2 ? 'text-amber-500' :
+                                  'text-emerald-500'
+                                }>
+                                  {strengthCount === 1 && 'Weak ⚠️'}
+                                  {strengthCount === 2 && 'Medium ⚡'}
+                                  {strengthCount === 3 && 'Strong & Secure'}
+                                </span>
+                              </div>
+
+                              <div className="grid grid-cols-3 gap-1.5 h-1.5">
+                                <div className={`h-full rounded-full transition-all duration-300 ${
+                                  newUserPassword.length === 0 ? 'bg-zinc-800' :
+                                  strengthCount >= 1 ? 'bg-destructive shadow-[0_0_8px_rgba(239,68,68,0.3)]' : 'bg-zinc-800'
+                                }`} />
+                                <div className={`h-full rounded-full transition-all duration-300 ${
+                                  strengthCount >= 2 ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.3)]' : 'bg-zinc-800'
+                                }`} />
+                                <div className={`h-full rounded-full transition-all duration-300 ${
+                                  strengthCount >= 3 ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.3)]' : 'bg-zinc-800'
+                                }`} />
+                              </div>
+
+                              <div className="space-y-1.5 pt-1">
+                                {[
+                                  { checked: hasMinLength, label: 'Minimum 8 characters' },
+                                  { checked: hasNumber, label: 'At least one number (0-9)' },
+                                  { checked: hasSpecialChar, label: 'At least one special character (e.g. !@#$)' }
+                                ].map((rule, idx) => (
+                                  <div key={idx} className="flex items-center gap-2 text-[10px] font-medium transition-all duration-300">
+                                    {rule.checked ? (
+                                      <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                                    ) : (
+                                      <X className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
+                                    )}
+                                    <span className={rule.checked ? 'text-foreground' : 'text-muted-foreground/80'}>
+                                      {rule.label}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
 

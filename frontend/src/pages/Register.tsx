@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import api from '../services/api';
-import { Shield, User, Mail, Lock, AlertCircle, ArrowRight } from 'lucide-react';
+import { Shield, User, Mail, Lock, AlertCircle, ArrowRight, Eye, EyeOff, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,9 +28,15 @@ const Register = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  const hasMinLength = password.length >= 8;
+  const hasNumber = /[0-9]/.test(password);
+  const hasSpecialChar = /[^A-Za-z0-9]/.test(password);
+  const strengthCount = [hasMinLength, hasNumber, hasSpecialChar].filter(Boolean).length;
 
   const showcaseRef = useRef<HTMLDivElement>(null);
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -130,14 +136,71 @@ const Register = () => {
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="password"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••"
-                  className="pl-10 h-10.5 bg-background/50 focus-visible:ring-primary/30"
+                  className="pl-10 pr-10 h-10.5 bg-background/50 focus-visible:ring-primary/30"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={loading}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                  disabled={loading}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
               </div>
+
+              {password.length > 0 && (
+                <div className="mt-2.5 space-y-2.5 p-3.5 bg-muted/20 border border-border/40 rounded-xl">
+                  <div className="flex items-center justify-between text-[11px] font-semibold">
+                    <span className="text-muted-foreground">Password Strength:</span>
+                    <span className={
+                      strengthCount === 1 ? 'text-destructive' :
+                      strengthCount === 2 ? 'text-amber-500' :
+                      'text-emerald-500'
+                    }>
+                      {strengthCount === 1 && 'Weak ⚠️'}
+                      {strengthCount === 2 && 'Medium ⚡'}
+                      {strengthCount === 3 && 'Strong & Secure'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-1.5 h-1.5">
+                    <div className={`h-full rounded-full transition-all duration-300 ${
+                      password.length === 0 ? 'bg-zinc-800' :
+                      strengthCount >= 1 ? 'bg-destructive shadow-[0_0_8px_rgba(239,68,68,0.3)]' : 'bg-zinc-800'
+                    }`} />
+                    <div className={`h-full rounded-full transition-all duration-300 ${
+                      strengthCount >= 2 ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.3)]' : 'bg-zinc-800'
+                    }`} />
+                    <div className={`h-full rounded-full transition-all duration-300 ${
+                      strengthCount >= 3 ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.3)]' : 'bg-zinc-800'
+                    }`} />
+                  </div>
+
+                  <div className="space-y-1.5 pt-1">
+                    {[
+                      { checked: hasMinLength, label: 'Minimum 8 characters' },
+                      { checked: hasNumber, label: 'At least one number (0-9)' },
+                      { checked: hasSpecialChar, label: 'At least one special character (e.g. !@#$)' }
+                    ].map((rule, idx) => (
+                      <div key={idx} className="flex items-center gap-2 text-[10px] font-medium transition-all duration-300">
+                        {rule.checked ? (
+                          <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                        ) : (
+                          <X className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
+                        )}
+                        <span className={rule.checked ? 'text-foreground' : 'text-muted-foreground/80'}>
+                          {rule.label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <Button type="submit" className="w-full h-10.5 gap-2 cursor-pointer mt-2" disabled={loading}>

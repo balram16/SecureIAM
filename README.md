@@ -76,7 +76,13 @@ Seeding the database will register the following base users:
    ```
 
 3. **Configure Environment Variables**:
-   Create a `.env` file (e.g. `backend/.env`) and configure the `DATABASE_URL` with your local PostgreSQL password.
+   Create a `.env` file (`backend/.env`) and populate it with all required configurations:
+   ```env
+   PORT=5000
+   DATABASE_URL="postgresql://postgres:YOUR_POSTGRES_PASSWORD@localhost:5432/iam_db?schema=public"
+   JWT_SECRET="your_custom_jwt_secret_key_here"
+   NODE_ENV="development"
+   ```
 
 4. **Sync the Database Schema**:
    Push the Prisma schema models to your PostgreSQL database instance:
