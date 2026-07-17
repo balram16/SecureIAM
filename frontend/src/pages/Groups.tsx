@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import Sidebar from '../components/Sidebar';
+import TopNavbar from '../components/TopNavbar';
 import api from '../services/api';
 import { Plus, Trash2, Edit3, Eye, ChevronLeft, AlertCircle, Search, X, UserPlus, UserMinus, ShieldAlert, Check } from 'lucide-react';
 import { Group, User, Policy } from '../types/iam';
@@ -227,14 +228,14 @@ const Groups = () => {
     }
   };
 
-  const filteredGroups = groups.filter(g => 
+  const filteredGroups = groups.filter(g =>
     g.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (g.description && g.description.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   // Filter lists for dropdown addition
   const currentMemberIds = selectedGroup?.members?.map((m: any) => m.id) || [];
-  const addableUsers = allUsers.filter(u => 
+  const addableUsers = allUsers.filter(u =>
     !currentMemberIds.includes(u.id) &&
     (u.name.toLowerCase().includes(userSearchText.toLowerCase()) || u.email.toLowerCase().includes(userSearchText.toLowerCase()))
   );
@@ -248,52 +249,59 @@ const Groups = () => {
   if (queryError && (queryError as any).response?.status === 403) {
     const message = (queryError as any).response?.data?.message || '';
     const missingPermission = message.match(/perform\s+([a-zA-Z0-9:]+)/)?.[1] || 'iam:ListGroups';
-    
+
     return (
       <div className="flex h-screen bg-background overflow-hidden text-foreground">
         <Sidebar />
-        <div className="flex-1 flex items-center justify-center p-8 relative">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-destructive/5 rounded-full blur-[120px] -z-10" />
-          <div className="absolute bottom-0 left-0 w-96 h-96 bg-primary/5 rounded-full blur-[120px] -z-10" />
 
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="max-w-md w-full bg-card border border-destructive/20 rounded-2xl shadow-2xl p-8 text-center space-y-6 relative overflow-hidden"
-          >
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-destructive via-red-500 to-destructive" />
-            
-            <div className="mx-auto w-16 h-16 bg-destructive/10 text-destructive border border-destructive/20 rounded-full flex items-center justify-center shadow-lg shadow-destructive/10 animate-pulse">
-              <ShieldAlert className="h-8 w-8" />
-            </div>
+        {/* Main Content Container */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          <TopNavbar />
 
-            <div className="space-y-2">
-              <h2 className="text-xl font-bold tracking-tight text-foreground flex items-center justify-center gap-2">
-                🛡️ Permission Denied
-              </h2>
-              <p className="text-[11px] font-bold text-destructive uppercase tracking-widest bg-destructive/5 py-1 px-3 rounded-full inline-block border border-destructive/10">
-                403 Forbidden
-              </p>
-            </div>
+          {/* Scrollable Page Body */}
+          <div className="flex-1 flex items-center justify-center p-8 relative overflow-y-auto">
+            <div className="absolute top-0 right-0 w-96 h-96 bg-destructive/5 rounded-full blur-[120px] -z-10" />
+            <div className="absolute bottom-0 left-0 w-96 h-96 bg-primary/5 rounded-full blur-[120px] -z-10" />
 
-            <div className="space-y-3 p-4 bg-background/50 border border-border/40 rounded-xl">
-              <div className="text-xs text-muted-foreground font-medium">Missing Permission</div>
-              <div className="font-mono text-sm text-foreground bg-muted/60 py-1.5 px-3 rounded-lg border border-border/50 select-all font-semibold inline-block">
-                {missingPermission}
-              </div>
-              <p className="text-xs text-muted-foreground leading-relaxed pt-1">
-                You do not have the required permissions in your attached identity policies or groups to access this console page.
-              </p>
-            </div>
-
-            <Button
-              variant="outline"
-              className="w-full text-xs font-semibold cursor-pointer border-border hover:bg-muted/50"
-              onClick={() => window.location.href = '/dashboard'}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="max-w-md w-full bg-card border border-destructive/20 rounded-2xl shadow-2xl p-8 text-center space-y-6 relative overflow-hidden"
             >
-              Return to Dashboard
-            </Button>
-          </motion.div>
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-destructive via-red-500 to-destructive" />
+
+              <div className="mx-auto w-16 h-16 bg-destructive/10 text-destructive border border-destructive/20 rounded-full flex items-center justify-center shadow-lg shadow-destructive/10 animate-pulse">
+                <ShieldAlert className="h-8 w-8" />
+              </div>
+
+              <div className="space-y-2">
+                <h2 className="text-xl font-bold tracking-tight text-foreground flex items-center justify-center gap-2">
+                  🛡️ Permission Denied
+                </h2>
+                <p className="text-[11px] font-bold text-destructive uppercase tracking-widest bg-destructive/5 py-1 px-3 rounded-full inline-block border border-destructive/10">
+                  403 Forbidden
+                </p>
+              </div>
+
+              <div className="space-y-3 p-4 bg-background/50 border border-border/40 rounded-xl">
+                <div className="text-xs text-muted-foreground font-medium">Missing Permission</div>
+                <div className="font-mono text-sm text-foreground bg-muted/60 py-1.5 px-3 rounded-lg border border-border/50 select-all font-semibold inline-block">
+                  {missingPermission}
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed pt-1">
+                  You do not have the required permissions in your attached identity policies or groups to access this console page.
+                </p>
+              </div>
+
+              <Button
+                variant="outline"
+                className="w-full text-xs font-semibold cursor-pointer border-border hover:bg-muted/50"
+                onClick={() => window.location.href = '/dashboard'}
+              >
+                Return to Dashboard
+              </Button>
+            </motion.div>
+          </div>
         </div>
       </div>
     );
@@ -303,511 +311,517 @@ const Groups = () => {
     <div className="flex h-screen bg-background overflow-hidden text-foreground">
       <Sidebar />
 
-      <div className="flex-1 overflow-y-auto p-8 relative flex flex-col">
-        {/* Background glow */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-[120px] -z-10" />
+      {/* Main Content Container */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <TopNavbar />
 
-        <PageWrapper className="flex-1 flex flex-col min-h-0">
-          {/* Floating Toast Error alert */}
-          <AnimatePresence>
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, y: -20, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -20, scale: 0.95 }}
-                className="fixed top-6 right-6 z-50 p-4 bg-destructive/15 border border-destructive/25 text-destructive rounded-xl flex items-start gap-3 w-[400px] max-w-[calc(100vw-32px)] shadow-2xl backdrop-blur-md"
-              >
-                <div className="w-5.5 h-5.5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center shrink-0 shadow-lg shadow-destructive/20 mt-0.5">
-                  <AlertCircle className="h-4 w-4" />
-                </div>
-                <div className="flex-1 min-w-0 pr-2">
-                  <div className="font-bold text-foreground text-sm mb-0.5">
-                    {error.toLowerCase().includes('bypass') || error.toLowerCase().includes('possess') || error.toLowerCase().includes('permission') ? 'Access Denied' : 'Security Alert'}
+        {/* Scrollable Page Body */}
+        <div className="flex-1 overflow-y-auto p-8 relative flex flex-col">
+          {/* Background glow */}
+          <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-[120px] -z-10" />
+
+          <PageWrapper className="flex-1 flex flex-col min-h-0">
+            {/* Floating Toast Error alert */}
+            <AnimatePresence>
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                  className="fixed top-6 right-6 z-50 p-4 bg-destructive/15 border border-destructive/25 text-destructive rounded-xl flex items-start gap-3 w-[400px] max-w-[calc(100vw-32px)] shadow-2xl backdrop-blur-md"
+                >
+                  <div className="w-5.5 h-5.5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center shrink-0 shadow-lg shadow-destructive/20 mt-0.5">
+                    <AlertCircle className="h-4 w-4" />
                   </div>
-                  <p className="text-xs leading-relaxed text-destructive/90">{error}</p>
-                </div>
-                <button 
-                  onClick={() => setError('')} 
-                  className="text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg p-1 transition-colors shrink-0 cursor-pointer"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Floating Toast Success Alert */}
-          <AnimatePresence>
-            {success && (
-              <motion.div
-                initial={{ opacity: 0, y: -20, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -20, scale: 0.95 }}
-                className="fixed top-6 right-6 z-50 p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl flex items-start gap-3 w-[400px] max-w-[calc(100vw-32px)] shadow-2xl backdrop-blur-md"
-              >
-                <div className="w-5.5 h-5.5 bg-emerald-500 text-white rounded-full flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/20 mt-0.5">
-                  <Check className="h-4 w-4" />
-                </div>
-                <div className="flex-1 min-w-0 pr-2">
-                  <div className="font-bold text-foreground text-sm mb-0.5">Success</div>
-                  <p className="text-xs leading-relaxed text-emerald-400/90">{success}</p>
-                </div>
-                <button 
-                  onClick={() => setSuccess('')} 
-                  className="text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg p-1 transition-colors shrink-0 cursor-pointer"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* LIST VIEW */}
-          {view === 'list' && (
-            <>
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 shrink-0">
-                <div>
-                  <h1 className="text-2xl font-bold text-foreground tracking-tight">User Groups</h1>
-                  <p className="text-muted-foreground text-sm mt-1">
-                    Organize user access by clustering members and binding reusable managed policies.
-                  </p>
-                </div>
-                 <Button onClick={() => { setError(''); setName(''); setDescription(''); setShowCreateModal(true); }} className="gap-2 self-start sm:self-auto">
-                  <Plus className="h-4 w-4" />
-                  Create Group
-                </Button>
-              </div>
-
-              {/* Search */}
-              <div className="relative mb-5 shrink-0 max-w-md">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted-foreground">
-                  <Search className="h-4 w-4" />
-                </div>
-                <Input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search groups by name or description..."
-                  className="pl-10"
-                />
-              </div>
-
-              {/* Groups Table */}
-              <Card className="flex-1 min-h-0 flex flex-col overflow-hidden">
-                <div className="flex-1 overflow-y-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted/20 hover:bg-muted/20">
-                        <TableHead className="pl-6">Group Name</TableHead>
-                        <TableHead>Members count</TableHead>
-                        <TableHead>Attached policies</TableHead>
-                        <TableHead>Created At</TableHead>
-                        <TableHead className="pr-6 text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {(loading || isGroupsLoading) && groups.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={5} className="p-8 text-center text-muted-foreground">
-                            Fetching groups from database...
-                          </TableCell>
-                        </TableRow>
-                      ) : filteredGroups.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={5} className="p-8 text-center text-muted-foreground">
-                            No groups found.
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        filteredGroups.map((g) => {
-                          const mCount = g.memberCount || 0;
-                          const pCount = g.policyCount || 0;
-                          return (
-                            <TableRow key={g.id} className="group">
-                              <TableCell className="pl-6">
-                                <div className="font-semibold text-foreground group-hover:text-primary transition-colors">
-                                  {g.name}
-                                </div>
-                                {g.description && (
-                                  <div className="text-xs text-muted-foreground mt-1 max-w-sm truncate">
-                                    {g.description}
-                                  </div>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-sm font-medium text-foreground/80">
-                                {mCount} {mCount === 1 ? 'member' : 'members'}
-                              </TableCell>
-                              <TableCell className="text-sm font-medium text-foreground/80">
-                                {pCount} {pCount === 1 ? 'policy' : 'policies'}
-                              </TableCell>
-                              <TableCell className="text-xs text-muted-foreground">
-                                {new Date(g.createdAt).toLocaleDateString()}
-                              </TableCell>
-                              <TableCell className="pr-6 text-right">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => fetchGroupDetails(g.id)}
-                                  className="gap-1.5 h-8 text-xs"
-                                >
-                                  <Eye className="h-3.5 w-3.5" />
-                                  Manage
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </Card>
-
-              {/* Create Group Modal */}
-              <AnimatePresence>
-                {showCreateModal && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+                  <div className="flex-1 min-w-0 pr-2">
+                    <div className="font-bold text-foreground text-sm mb-0.5">
+                      {error.toLowerCase().includes('bypass') || error.toLowerCase().includes('possess') || error.toLowerCase().includes('permission') ? 'Access Denied' : 'Security Alert'}
+                    </div>
+                    <p className="text-xs leading-relaxed text-destructive/90">{error}</p>
+                  </div>
+                  <button
+                    onClick={() => setError('')}
+                    className="text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg p-1 transition-colors shrink-0 cursor-pointer"
                   >
-                    <motion.form
-                      variants={scaleIn}
-                      initial="initial"
-                      animate="animate"
-                      exit="exit"
-                      onSubmit={handleCreateGroup}
-                      className="bg-card border border-border rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4"
-                    >
-                      <h3 className="text-lg font-bold text-foreground">Create User Group</h3>
-                      
-                      {error && (
-                        <div className="p-3 bg-destructive/10 border border-destructive/20 text-destructive rounded-xl flex items-start gap-2.5 text-xs">
-                          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                          <div className="flex-1">
-                            <span className="font-semibold">Error:</span> {error}
-                          </div>
-                          <button type="button" onClick={() => setError('')} className="text-muted-foreground hover:text-foreground">
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      )}
-                      
-                      <div className="space-y-1.5">
-                        <Label>Group Name</Label>
-                        <Input
-                          required
-                          value={name}
-                          onChange={(e) => setName(e.target.value)}
-                          placeholder="e.g. Administrators"
-                        />
-                      </div>
+                    <X className="h-4 w-4" />
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-                      <div className="space-y-1.5">
-                        <Label>Description</Label>
-                        <Textarea
-                          value={description}
-                          onChange={(e) => setDescription(e.target.value)}
-                          placeholder="Administrative personnel holding global systems view access..."
-                          rows={3}
-                        />
-                      </div>
+            {/* Floating Toast Success Alert */}
+            <AnimatePresence>
+              {success && (
+                <motion.div
+                  initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                  className="fixed top-6 right-6 z-50 p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl flex items-start gap-3 w-[400px] max-w-[calc(100vw-32px)] shadow-2xl backdrop-blur-md"
+                >
+                  <div className="w-5.5 h-5.5 bg-emerald-500 text-white rounded-full flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/20 mt-0.5">
+                    <Check className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1 min-w-0 pr-2">
+                    <div className="font-bold text-foreground text-sm mb-0.5">Success</div>
+                    <p className="text-xs leading-relaxed text-emerald-400/90">{success}</p>
+                  </div>
+                  <button
+                    onClick={() => setSuccess('')}
+                    className="text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg p-1 transition-colors shrink-0 cursor-pointer"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-                      <div className="flex justify-end gap-3 pt-2">
-                        <Button type="button" variant="outline" onClick={() => setShowCreateModal(false)}>
-                          Cancel
-                        </Button>
-                        <Button type="submit" disabled={loading}>
-                          {loading ? 'Creating...' : 'Create Group'}
-                        </Button>
-                      </div>
-                    </motion.form>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </>
-          )}
-
-          {/* DETAIL VIEW */}
-          {view === 'detail' && selectedGroup && (
-            <div className="flex-1 flex flex-col min-h-0">
-              {/* Detail Header */}
-              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6 shrink-0">
-                <div className="flex items-start gap-3">
-                  <Button variant="outline" size="icon" onClick={() => setView('list')} className="h-9 w-9 mt-0.5">
-                    <ChevronLeft className="h-4 w-4" />
+            {/* LIST VIEW */}
+            {view === 'list' && (
+              <>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 shrink-0">
+                  <div>
+                    <h1 className="text-2xl font-bold text-foreground tracking-tight">User Groups</h1>
+                    <p className="text-muted-foreground text-sm mt-1">
+                      Organize user access by clustering members and binding reusable managed policies.
+                    </p>
+                  </div>
+                  <Button onClick={() => { setError(''); setName(''); setDescription(''); setShowCreateModal(true); }} className="gap-2 self-start sm:self-auto">
+                    <Plus className="h-4 w-4" />
+                    Create Group
                   </Button>
-                  
-                  {isEditingMeta ? (
-                    <div className="space-y-2 max-w-md">
-                      <Input
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                        className="text-lg font-bold"
-                      />
-                      <Input
-                        value={editDescription}
-                        onChange={(e) => setEditDescription(e.target.value)}
-                        className="text-xs"
-                      />
-                    </div>
-                  ) : (
-                    <div>
-                      <h1 className="text-xl font-bold text-foreground">{selectedGroup.name}</h1>
-                      <p className="text-xs text-muted-foreground mt-1">{selectedGroup.description || 'No description provided.'}</p>
-                    </div>
-                  )}
                 </div>
 
-                <div className="flex items-center gap-2 self-end sm:self-auto">
-                  {isEditingMeta ? (
-                    <>
-                      <Button variant="outline" size="sm" onClick={() => setIsEditingMeta(false)}>Cancel</Button>
-                      <Button size="sm" onClick={handleUpdateGroupMeta} disabled={loading}>Save</Button>
-                    </>
-                  ) : (
-                    <>
-                      <Button variant="outline" size="icon" onClick={() => setIsEditingMeta(true)} className="h-9 w-9" title="Edit metadata">
-                        <Edit3 className="h-4 w-4" />
-                      </Button>
-                      <Button variant="outline" size="icon" onClick={() => setShowDeleteConfirm(true)} className="h-9 w-9 text-destructive hover:text-destructive border-destructive/20 hover:bg-destructive/10" title="Delete Group">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </>
-                  )}
+                {/* Search */}
+                <div className="relative mb-5 shrink-0 max-w-md">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted-foreground">
+                    <Search className="h-4 w-4" />
+                  </div>
+                  <Input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search groups by name or description..."
+                    className="pl-10"
+                  />
                 </div>
-              </div>
 
-              {/* Split layout: Members + Policies */}
-              <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-5">
-                {/* Group Members */}
-                <Card className="flex flex-col min-h-0">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-sm flex items-center gap-2">
-                        Group Members
-                        <Badge variant="secondary" className="text-[9px]">{selectedGroup.members?.length || 0}</Badge>
-                      </CardTitle>
-                      
-                      <div className="relative">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setUserSearchText('');
-                            setShowAddUserDropdown(!showAddUserDropdown);
-                            setShowAttachPolicyDropdown(false);
-                          }}
-                          className="gap-1.5 h-7 text-xs"
-                        >
-                          <UserPlus className="h-3 w-3" />
-                          Add Member
-                        </Button>
-
-                        <AnimatePresence>
-                          {showAddUserDropdown && (
-                            <motion.div
-                              initial={{ opacity: 0, y: -4 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0, y: -4 }}
-                              className="absolute right-0 mt-2 p-3 bg-card border border-border rounded-xl shadow-2xl z-20 w-72 flex flex-col max-h-[250px]"
-                            >
-                              <Input
-                                value={userSearchText}
-                                onChange={(e) => setUserSearchText(e.target.value)}
-                                placeholder="Search users..."
-                                className="mb-2 h-8 text-xs"
-                              />
-                              <div className="flex-1 overflow-y-auto space-y-0.5">
-                                {addableUsers.length === 0 ? (
-                                  <p className="text-xs text-muted-foreground italic p-2 text-center">No addable users found.</p>
-                                ) : (
-                                  addableUsers.map(u => (
-                                    <button
-                                      key={u.id}
-                                      onClick={() => handleAddUser(u.id)}
-                                      className="w-full text-left px-2.5 py-1.5 hover:bg-muted/50 rounded-lg text-xs font-medium text-foreground/80 hover:text-foreground transition-colors"
-                                    >
-                                      {u.name} ({u.email})
-                                    </button>
-                                  ))
-                                )}
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    </div>
-                  </CardHeader>
-
-                  <CardContent className="flex-1 overflow-y-auto space-y-2 pr-1">
-                    {!selectedGroup.members || selectedGroup.members.length === 0 ? (
-                      <div className="p-8 text-center text-muted-foreground border border-dashed border-border rounded-xl text-sm">
-                        No members attached to this group.
-                      </div>
-                    ) : (
-                      selectedGroup.members.map((u: any) => (
-                        <motion.div
-                          key={u.id}
-                          initial={{ opacity: 0, x: -8 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          className="flex items-center justify-between p-3 bg-background/60 border border-border/50 hover:border-border rounded-xl transition-all"
-                        >
-                          <div className="overflow-hidden pr-2">
-                            <div className="font-medium text-xs text-foreground truncate">{u.name}</div>
-                            <div className="text-[10px] text-muted-foreground mt-0.5 truncate">{u.email}</div>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleRemoveUser(u.id)}
-                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                            title="Remove member"
-                          >
-                            <UserMinus className="h-3.5 w-3.5" />
-                          </Button>
-                        </motion.div>
-                      ))
-                    )}
-                  </CardContent>
+                {/* Groups Table */}
+                <Card className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                  <div className="flex-1 overflow-y-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/20 hover:bg-muted/20">
+                          <TableHead className="pl-6">Group Name</TableHead>
+                          <TableHead>Members count</TableHead>
+                          <TableHead>Attached policies</TableHead>
+                          <TableHead>Created At</TableHead>
+                          <TableHead className="pr-6 text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {(loading || isGroupsLoading) && groups.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={5} className="p-8 text-center text-muted-foreground">
+                              Fetching groups from database...
+                            </TableCell>
+                          </TableRow>
+                        ) : filteredGroups.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={5} className="p-8 text-center text-muted-foreground">
+                              No groups found.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          filteredGroups.map((g) => {
+                            const mCount = g.memberCount || 0;
+                            const pCount = g.policyCount || 0;
+                            return (
+                              <TableRow key={g.id} className="group">
+                                <TableCell className="pl-6">
+                                  <div className="font-semibold text-foreground group-hover:text-primary transition-colors">
+                                    {g.name}
+                                  </div>
+                                  {g.description && (
+                                    <div className="text-xs text-muted-foreground mt-1 max-w-sm truncate">
+                                      {g.description}
+                                    </div>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-sm font-medium text-foreground/80">
+                                  {mCount} {mCount === 1 ? 'member' : 'members'}
+                                </TableCell>
+                                <TableCell className="text-sm font-medium text-foreground/80">
+                                  {pCount} {pCount === 1 ? 'policy' : 'policies'}
+                                </TableCell>
+                                <TableCell className="text-xs text-muted-foreground">
+                                  {new Date(g.createdAt).toLocaleDateString()}
+                                </TableCell>
+                                <TableCell className="pr-6 text-right">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => fetchGroupDetails(g.id)}
+                                    className="gap-1.5 h-8 text-xs"
+                                  >
+                                    <Eye className="h-3.5 w-3.5" />
+                                    Manage
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </Card>
 
-                {/* Group Policies */}
-                <Card className="flex flex-col min-h-0">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-sm flex items-center gap-2">
-                        Attached Policies
-                        <Badge variant="secondary" className="text-[9px]">{selectedGroup.policies?.length || 0}</Badge>
-                      </CardTitle>
-
-                      <div className="relative">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setPolicySearchText('');
-                            setShowAttachPolicyDropdown(!showAttachPolicyDropdown);
-                            setShowAddUserDropdown(false);
-                          }}
-                          className="gap-1.5 h-7 text-xs"
-                        >
-                          <Plus className="h-3 w-3" />
-                          Attach Policy
-                        </Button>
-
-                        <AnimatePresence>
-                          {showAttachPolicyDropdown && (
-                            <motion.div
-                              initial={{ opacity: 0, y: -4 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0, y: -4 }}
-                              className="absolute right-0 mt-2 p-3 bg-card border border-border rounded-xl shadow-2xl z-20 w-72 flex flex-col max-h-[250px]"
-                            >
-                              <Input
-                                value={policySearchText}
-                                onChange={(e) => setPolicySearchText(e.target.value)}
-                                placeholder="Search policies..."
-                                className="mb-2 h-8 text-xs"
-                              />
-                              <div className="flex-1 overflow-y-auto space-y-0.5">
-                                {attachablePolicies.length === 0 ? (
-                                  <p className="text-xs text-muted-foreground italic p-2 text-center">No managed policies found.</p>
-                                ) : (
-                                  attachablePolicies.map(p => (
-                                    <button
-                                      key={p.id}
-                                      onClick={() => handleAttachPolicy(p.id)}
-                                      className="w-full text-left px-2.5 py-1.5 hover:bg-muted/50 rounded-lg text-xs font-medium text-foreground/80 hover:text-foreground transition-colors"
-                                    >
-                                      {p.name}
-                                    </button>
-                                  ))
-                                )}
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    </div>
-                  </CardHeader>
-
-                  <CardContent className="flex-1 overflow-y-auto space-y-2 pr-1">
-                    {!selectedGroup.policies || selectedGroup.policies.length === 0 ? (
-                      <div className="p-8 text-center text-muted-foreground border border-dashed border-border rounded-xl text-sm">
-                        No policies attached to this group.
-                      </div>
-                    ) : (
-                      selectedGroup.policies.map((p: any) => (
-                        <motion.div
-                          key={p.id}
-                          initial={{ opacity: 0, x: -8 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          className="flex items-center justify-between p-3 bg-background/60 border border-border/50 hover:border-border rounded-xl transition-all"
-                        >
-                          <div className="overflow-hidden pr-2">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-xs text-foreground truncate">{p.name}</span>
-                              <Badge variant={p.type === 'MANAGED' ? 'secondary' : 'outline'} className="text-[9px] px-1.5 py-0 shrink-0 font-semibold tracking-wider text-[10px]">
-                                {p.type}
-                              </Badge>
-                            </div>
-                            <div className="text-[10px] text-muted-foreground mt-0.5 truncate">{p.description || 'No description.'}</div>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDetachPolicy(p.id)}
-                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                            title="Detach policy"
-                          >
-                            <UserMinus className="h-3.5 w-3.5" />
-                          </Button>
-                        </motion.div>
-                      ))
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Delete group confirm */}
-              <AnimatePresence>
-                {showDeleteConfirm && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
-                  >
+                {/* Create Group Modal */}
+                <AnimatePresence>
+                  {showCreateModal && (
                     <motion.div
-                      variants={scaleIn}
-                      initial="initial"
-                      animate="animate"
-                      exit="exit"
-                      className="bg-card border border-border rounded-2xl p-6 max-w-md w-full shadow-2xl"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
                     >
-                      <h3 className="text-lg font-bold text-foreground mb-2 flex items-center gap-2">
-                        <ShieldAlert className="h-5 w-5 text-destructive shrink-0" />
-                        Delete User Group
-                      </h3>
-                      <p className="text-sm text-muted-foreground mb-6">
-                        Are you sure you want to delete group <span className="text-foreground font-semibold">{selectedGroup.name}</span>? All group memberships will be severed immediately.
-                      </p>
-                      <div className="flex justify-end gap-3">
-                        <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
-                          Cancel
-                        </Button>
-                        <Button variant="destructive" onClick={handleDeleteGroup} disabled={loading}>
-                          {loading ? 'Deleting...' : 'Delete Group'}
-                        </Button>
-                      </div>
+                      <motion.form
+                        variants={scaleIn}
+                        initial="initial"
+                        animate="animate"
+                        exit="exit"
+                        onSubmit={handleCreateGroup}
+                        className="bg-card border border-border rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4"
+                      >
+                        <h3 className="text-lg font-bold text-foreground">Create User Group</h3>
+
+                        {error && (
+                          <div className="p-3 bg-destructive/10 border border-destructive/20 text-destructive rounded-xl flex items-start gap-2.5 text-xs">
+                            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                            <div className="flex-1">
+                              <span className="font-semibold">Error:</span> {error}
+                            </div>
+                            <button type="button" onClick={() => setError('')} className="text-muted-foreground hover:text-foreground">
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        )}
+
+                        <div className="space-y-1.5">
+                          <Label>Group Name</Label>
+                          <Input
+                            required
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            placeholder="e.g. Administrators"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label>Description</Label>
+                          <Textarea
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            placeholder="Administrative personnel holding global systems view access..."
+                            rows={3}
+                          />
+                        </div>
+
+                        <div className="flex justify-end gap-3 pt-2">
+                          <Button type="button" variant="outline" onClick={() => setShowCreateModal(false)}>
+                            Cancel
+                          </Button>
+                          <Button type="submit" disabled={loading}>
+                            {loading ? 'Creating...' : 'Create Group'}
+                          </Button>
+                        </div>
+                      </motion.form>
                     </motion.div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          )}
-        </PageWrapper>
+                  )}
+                </AnimatePresence>
+              </>
+            )}
+
+            {/* DETAIL VIEW */}
+            {view === 'detail' && selectedGroup && (
+              <div className="flex-1 flex flex-col min-h-0">
+                {/* Detail Header */}
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6 shrink-0">
+                  <div className="flex items-start gap-3">
+                    <Button variant="outline" size="icon" onClick={() => setView('list')} className="h-9 w-9 mt-0.5">
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+
+                    {isEditingMeta ? (
+                      <div className="space-y-2 max-w-md">
+                        <Input
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          className="text-lg font-bold"
+                        />
+                        <Input
+                          value={editDescription}
+                          onChange={(e) => setEditDescription(e.target.value)}
+                          className="text-xs"
+                        />
+                      </div>
+                    ) : (
+                      <div>
+                        <h1 className="text-xl font-bold text-foreground">{selectedGroup.name}</h1>
+                        <p className="text-xs text-muted-foreground mt-1">{selectedGroup.description || 'No description provided.'}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 self-end sm:self-auto">
+                    {isEditingMeta ? (
+                      <>
+                        <Button variant="outline" size="sm" onClick={() => setIsEditingMeta(false)}>Cancel</Button>
+                        <Button size="sm" onClick={handleUpdateGroupMeta} disabled={loading}>Save</Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button variant="outline" size="icon" onClick={() => setIsEditingMeta(true)} className="h-9 w-9" title="Edit metadata">
+                          <Edit3 className="h-4 w-4" />
+                        </Button>
+                        <Button variant="outline" size="icon" onClick={() => setShowDeleteConfirm(true)} className="h-9 w-9 text-destructive hover:text-destructive border-destructive/20 hover:bg-destructive/10" title="Delete Group">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Split layout: Members + Policies */}
+                <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-5">
+                  {/* Group Members */}
+                  <Card className="flex flex-col min-h-0">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          Group Members
+                          <Badge variant="secondary" className="text-[9px]">{selectedGroup.members?.length || 0}</Badge>
+                        </CardTitle>
+
+                        <div className="relative">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setUserSearchText('');
+                              setShowAddUserDropdown(!showAddUserDropdown);
+                              setShowAttachPolicyDropdown(false);
+                            }}
+                            className="gap-1.5 h-7 text-xs"
+                          >
+                            <UserPlus className="h-3 w-3" />
+                            Add Member
+                          </Button>
+
+                          <AnimatePresence>
+                            {showAddUserDropdown && (
+                              <motion.div
+                                initial={{ opacity: 0, y: -4 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -4 }}
+                                className="absolute right-0 mt-2 p-3 bg-card border border-border rounded-xl shadow-2xl z-20 w-72 flex flex-col max-h-[250px]"
+                              >
+                                <Input
+                                  value={userSearchText}
+                                  onChange={(e) => setUserSearchText(e.target.value)}
+                                  placeholder="Search users..."
+                                  className="mb-2 h-8 text-xs"
+                                />
+                                <div className="flex-1 overflow-y-auto space-y-0.5">
+                                  {addableUsers.length === 0 ? (
+                                    <p className="text-xs text-muted-foreground italic p-2 text-center">No addable users found.</p>
+                                  ) : (
+                                    addableUsers.map(u => (
+                                      <button
+                                        key={u.id}
+                                        onClick={() => handleAddUser(u.id)}
+                                        className="w-full text-left px-2.5 py-1.5 hover:bg-muted/50 rounded-lg text-xs font-medium text-foreground/80 hover:text-foreground transition-colors"
+                                      >
+                                        {u.name} ({u.email})
+                                      </button>
+                                    ))
+                                  )}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      </div>
+                    </CardHeader>
+
+                    <CardContent className="flex-1 overflow-y-auto space-y-2 pr-1">
+                      {!selectedGroup.members || selectedGroup.members.length === 0 ? (
+                        <div className="p-8 text-center text-muted-foreground border border-dashed border-border rounded-xl text-sm">
+                          No members attached to this group.
+                        </div>
+                      ) : (
+                        selectedGroup.members.map((u: any) => (
+                          <motion.div
+                            key={u.id}
+                            initial={{ opacity: 0, x: -8 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="flex items-center justify-between p-3 bg-background/60 border border-border/50 hover:border-border rounded-xl transition-all"
+                          >
+                            <div className="overflow-hidden pr-2">
+                              <div className="font-medium text-xs text-foreground truncate">{u.name}</div>
+                              <div className="text-[10px] text-muted-foreground mt-0.5 truncate">{u.email}</div>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleRemoveUser(u.id)}
+                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                              title="Remove member"
+                            >
+                              <UserMinus className="h-3.5 w-3.5" />
+                            </Button>
+                          </motion.div>
+                        ))
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Group Policies */}
+                  <Card className="flex flex-col min-h-0">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          Attached Policies
+                          <Badge variant="secondary" className="text-[9px]">{selectedGroup.policies?.length || 0}</Badge>
+                        </CardTitle>
+
+                        <div className="relative">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setPolicySearchText('');
+                              setShowAttachPolicyDropdown(!showAttachPolicyDropdown);
+                              setShowAddUserDropdown(false);
+                            }}
+                            className="gap-1.5 h-7 text-xs"
+                          >
+                            <Plus className="h-3 w-3" />
+                            Attach Policy
+                          </Button>
+
+                          <AnimatePresence>
+                            {showAttachPolicyDropdown && (
+                              <motion.div
+                                initial={{ opacity: 0, y: -4 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -4 }}
+                                className="absolute right-0 mt-2 p-3 bg-card border border-border rounded-xl shadow-2xl z-20 w-72 flex flex-col max-h-[250px]"
+                              >
+                                <Input
+                                  value={policySearchText}
+                                  onChange={(e) => setPolicySearchText(e.target.value)}
+                                  placeholder="Search policies..."
+                                  className="mb-2 h-8 text-xs"
+                                />
+                                <div className="flex-1 overflow-y-auto space-y-0.5">
+                                  {attachablePolicies.length === 0 ? (
+                                    <p className="text-xs text-muted-foreground italic p-2 text-center">No managed policies found.</p>
+                                  ) : (
+                                    attachablePolicies.map(p => (
+                                      <button
+                                        key={p.id}
+                                        onClick={() => handleAttachPolicy(p.id)}
+                                        className="w-full text-left px-2.5 py-1.5 hover:bg-muted/50 rounded-lg text-xs font-medium text-foreground/80 hover:text-foreground transition-colors"
+                                      >
+                                        {p.name}
+                                      </button>
+                                    ))
+                                  )}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      </div>
+                    </CardHeader>
+
+                    <CardContent className="flex-1 overflow-y-auto space-y-2 pr-1">
+                      {!selectedGroup.policies || selectedGroup.policies.length === 0 ? (
+                        <div className="p-8 text-center text-muted-foreground border border-dashed border-border rounded-xl text-sm">
+                          No policies attached to this group.
+                        </div>
+                      ) : (
+                        selectedGroup.policies.map((p: any) => (
+                          <motion.div
+                            key={p.id}
+                            initial={{ opacity: 0, x: -8 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="flex items-center justify-between p-3 bg-background/60 border border-border/50 hover:border-border rounded-xl transition-all"
+                          >
+                            <div className="overflow-hidden pr-2">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-xs text-foreground truncate">{p.name}</span>
+                                <Badge variant={p.type === 'MANAGED' ? 'secondary' : 'outline'} className="text-[9px] px-1.5 py-0 shrink-0 font-semibold tracking-wider text-[10px]">
+                                  {p.type}
+                                </Badge>
+                              </div>
+                              <div className="text-[10px] text-muted-foreground mt-0.5 truncate">{p.description || 'No description.'}</div>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDetachPolicy(p.id)}
+                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                              title="Detach policy"
+                            >
+                              <UserMinus className="h-3.5 w-3.5" />
+                            </Button>
+                          </motion.div>
+                        ))
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Delete group confirm */}
+                <AnimatePresence>
+                  {showDeleteConfirm && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+                    >
+                      <motion.div
+                        variants={scaleIn}
+                        initial="initial"
+                        animate="animate"
+                        exit="exit"
+                        className="bg-card border border-border rounded-2xl p-6 max-w-md w-full shadow-2xl"
+                      >
+                        <h3 className="text-lg font-bold text-foreground mb-2 flex items-center gap-2">
+                          <ShieldAlert className="h-5 w-5 text-destructive shrink-0" />
+                          Delete User Group
+                        </h3>
+                        <p className="text-sm text-muted-foreground mb-6">
+                          Are you sure you want to delete group <span className="text-foreground font-semibold">{selectedGroup.name}</span>? All group memberships will be severed immediately.
+                        </p>
+                        <div className="flex justify-end gap-3">
+                          <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
+                            Cancel
+                          </Button>
+                          <Button variant="destructive" onClick={handleDeleteGroup} disabled={loading}>
+                            {loading ? 'Deleting...' : 'Delete Group'}
+                          </Button>
+                        </div>
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+          </PageWrapper>
+        </div>
       </div>
     </div>
   );

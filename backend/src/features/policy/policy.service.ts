@@ -2,6 +2,7 @@ import prisma from '../../config/db';
 import { ALL_ACTIONS, POLICY_TYPES, EFFECT_TYPES } from '../../config/constants';
 import { evaluatePermission } from '../../shared/utils/permission.utils';
 import { UserWithPolicies } from '../../types';
+import { logAudit } from '../../shared/utils/audit.logger';
 
 interface Statement {
   Effect: 'Allow' | 'Deny';
@@ -58,8 +59,8 @@ export const validatePolicyStatements = (statements: any): void => {
     }
 
     // Validate Resource
-    if (!Array.isArray(Resource) || Resource.length !== 1 || Resource[0] !== '*') {
-      const error: any = new Error('Resource must be exactly ["*"].');
+    if (!Array.isArray(Resource) || Resource.length === 0 || Resource.some(r => typeof r !== 'string' || !r.trim())) {
+      const error: any = new Error('Resource must be a non-empty array of valid strings.');
       error.statusCode = 400;
       throw error;
     }
@@ -180,6 +181,13 @@ export const createPolicy = async (
     return policy;
   });
 
+  await logAudit(
+    requestingUser.id,
+    requestingUser.name || requestingUser.email,
+    'iam:CreatePolicy',
+    `Created policy '${newPolicy.name}' of type ${newPolicy.type}`
+  );
+
   return newPolicy;
 };
 
@@ -266,10 +274,19 @@ export const updatePolicy = async (
   if (description !== undefined) updatedData.description = description;
   if (statements) updatedData.statements = { statements };
 
-  return await prisma.policy.update({
+  const updated = await prisma.policy.update({
     where: { id },
     data: updatedData
   });
+
+  await logAudit(
+    requestingUser.id,
+    requestingUser.name || requestingUser.email,
+    'iam:UpdatePolicy',
+    `Updated policy '${updated.name}'`
+  );
+
+  return updated;
 };
 
 export const deletePolicy = async (requestingUser: UserWithPolicies, id: string) => {
@@ -313,6 +330,13 @@ export const deletePolicy = async (requestingUser: UserWithPolicies, id: string)
   await prisma.policy.delete({
     where: { id }
   });
+
+  await logAudit(
+    requestingUser.id,
+    requestingUser.name || requestingUser.email,
+    'iam:DeletePolicy',
+    `Deleted policy '${policy.name}'`
+  );
 
   return { message: 'Policy deleted successfully.' };
 };

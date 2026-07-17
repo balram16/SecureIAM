@@ -6,7 +6,11 @@ export const createGroup = async (req: Request, res: Response) => {
   try {
     const { name, description } = req.body;
 
-    const newGroup = await groupService.createGroup({
+    if (!req.user) {
+      return errorResponse(res, 401, 'Unauthorized');
+    }
+
+    const newGroup = await groupService.createGroup(req.user, {
       name: name.trim(),
       description: description ? description.trim() : null
     });
@@ -46,7 +50,11 @@ export const updateGroup = async (req: Request, res: Response) => {
     const { id } = req.params as { id: string };
     const { name, description } = req.body;
 
-    const updatedGroup = await groupService.updateGroup(id, {
+    if (!req.user) {
+      return errorResponse(res, 401, 'Unauthorized');
+    }
+
+    const updatedGroup = await groupService.updateGroup(req.user, id, {
       name: name ? name.trim() : undefined,
       description
     });
@@ -62,7 +70,11 @@ export const updateGroup = async (req: Request, res: Response) => {
 export const deleteGroup = async (req: Request, res: Response) => {
   try {
     const { id } = req.params as { id: string };
-    const result = await groupService.deleteGroup(id);
+    if (!req.user) {
+      return errorResponse(res, 401, 'Unauthorized');
+    }
+
+    const result = await groupService.deleteGroup(req.user, id);
     return successResponse(res, 200, result);
   } catch (error: any) {
     console.error('Delete group controller error:', error);
@@ -76,7 +88,11 @@ export const addUser = async (req: Request, res: Response) => {
     const { id } = req.params as { id: string }; // Group ID
     const { userId } = req.body;
 
-    const membership = await groupService.addUserToGroup({
+    if (!req.user) {
+      return errorResponse(res, 401, 'Unauthorized');
+    }
+
+    const membership = await groupService.addUserToGroup(req.user, {
       groupId: id,
       userId
     });
@@ -92,7 +108,11 @@ export const addUser = async (req: Request, res: Response) => {
 export const removeUser = async (req: Request, res: Response) => {
   try {
     const { id, userId } = req.params as { id: string, userId: string };
-    const result = await groupService.removeUserFromGroup({
+    if (!req.user) {
+      return errorResponse(res, 401, 'Unauthorized');
+    }
+
+    const result = await groupService.removeUserFromGroup(req.user, {
       groupId: id,
       userId
     });
@@ -129,7 +149,11 @@ export const attachPolicy = async (req: Request, res: Response) => {
 export const detachPolicy = async (req: Request, res: Response) => {
   try {
     const { id, policyId } = req.params as { id: string, policyId: string };
-    const result = await groupService.detachPolicyFromGroup({
+    if (!req.user) {
+      return errorResponse(res, 401, 'Unauthorized');
+    }
+
+    const result = await groupService.detachPolicyFromGroup(req.user, {
       groupId: id,
       policyId
     });

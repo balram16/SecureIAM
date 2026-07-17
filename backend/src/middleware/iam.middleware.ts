@@ -15,10 +15,13 @@ export const iamMiddleware = (action: string) => {
         return errorResponse(res, 401, 'User must be authenticated before checking IAM permissions.');
       }
 
-      const isAllowed = evaluatePermission(req.user, action);
+      const namespace = action.split(':')[0];
+      const targetResource = req.params.id ? `${namespace}:${req.params.id}` : '*';
+
+      const isAllowed = evaluatePermission(req.user, action, targetResource);
 
       if (!isAllowed) {
-        return errorResponse(res, 403, `Forbidden: You do not have permission to perform ${action}.`);
+        return errorResponse(res, 403, `Forbidden: You do not have permission to perform ${action} on resource ${targetResource}.`);
       }
 
       next();

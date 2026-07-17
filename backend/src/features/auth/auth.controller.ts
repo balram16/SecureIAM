@@ -4,12 +4,15 @@ import { successResponse, errorResponse } from '../../shared/utils/response';
 
 export const register = async (req: Request, res: Response) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, policyIds, groupIds, boundaryPolicyId } = req.body;
 
     const newUser = await authService.registerUser({
       name: name.trim(),
       email: email.trim().toLowerCase(),
-      password
+      password,
+      policyIds,
+      groupIds,
+      boundaryPolicyId
     });
 
     return successResponse(res, 201, newUser);

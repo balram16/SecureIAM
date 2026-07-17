@@ -15,7 +15,8 @@ export const listUsers = async (req: Request, res: Response) => {
 export const getUser = async (req: Request, res: Response) => {
   try {
     const { id } = req.params as { id: string };
-    const profile = await userService.getUserProfile(id);
+    const resourceTarget = (req.query.resource as string) || '*';
+    const profile = await userService.getUserProfile(id, resourceTarget);
     return successResponse(res, 200, profile);
   } catch (error: any) {
     console.error('Get user profile controller error:', error);
@@ -49,7 +50,10 @@ export const attachPolicy = async (req: Request, res: Response) => {
 export const detachPolicy = async (req: Request, res: Response) => {
   try {
     const { id, policyId } = req.params as { id: string, policyId: string };
-    const result = await userService.detachPolicyFromUser({
+    if (!req.user) {
+      return errorResponse(res, 401, 'Unauthorized');
+    }
+    const result = await userService.detachPolicyFromUser(req.user, {
       userId: id,
       policyId
     });
@@ -98,5 +102,21 @@ export const deleteBoundary = async (req: Request, res: Response) => {
     console.error('Delete user boundary controller error:', error);
     const status = error.statusCode || 500;
     return errorResponse(res, status, error.message || 'Failed to remove boundary.');
+  }
+};
+
+export const deleteUser = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params as { id: string };
+    if (!req.user) {
+      return errorResponse(res, 401, 'Unauthorized');
+    }
+
+    const result = await userService.deleteUser(req.user, id);
+    return successResponse(res, 200, result);
+  } catch (error: any) {
+    console.error('Delete user controller error:', error);
+    const status = error.statusCode || 500;
+    return errorResponse(res, status, error.message || 'Failed to delete user.');
   }
 };

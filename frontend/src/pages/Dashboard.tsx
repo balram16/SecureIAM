@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Sidebar from '../components/Sidebar';
+import TopNavbar from '../components/TopNavbar';
 import api from '../services/api';
-import { Play, RotateCcw, AlertTriangle, ShieldCheck, Loader2 } from 'lucide-react';
+import { Play, RotateCcw, AlertTriangle, ShieldCheck, Loader2, Users, Key, ShieldAlert, List } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -68,6 +69,16 @@ const Dashboard = () => {
 
   // Store results for each action
   const [results, setResults] = useState<Record<string, TestResult>>({});
+
+  const dashboardRef = useRef<HTMLDivElement>(null);
+  const handleDashboardMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!dashboardRef.current) return;
+    const rect = dashboardRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    dashboardRef.current.style.setProperty('--db-mouse-x', `${x}px`);
+    dashboardRef.current.style.setProperty('--db-mouse-y', `${y}px`);
+  };
 
   const handleTestAction = async (item: TestActionItem) => {
     const key = item.action;
@@ -180,89 +191,100 @@ const Dashboard = () => {
     <div className="flex h-screen bg-background overflow-hidden text-foreground">
       <Sidebar />
 
-      {/* Main Content */}
-      <div className="flex-1 overflow-y-auto p-8 relative">
-        {/* Background glow */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-[120px] -z-10" />
+      {/* Main Content Container */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <TopNavbar />
 
-        <PageWrapper>
-          {/* Header */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-            <div>
-              <h1 className="text-2xl font-bold text-foreground tracking-tight">Resource Action Center</h1>
-              <p className="text-muted-foreground text-sm mt-1">
-                Verify your active permissions by dispatching authenticated requests to dummy system APIs.
-              </p>
+        {/* Scrollable Page Body */}
+        <div
+          ref={dashboardRef}
+          onMouseMove={handleDashboardMouseMove}
+          className="flex-1 overflow-y-auto p-8 relative group/db"
+        >
+          {/* Background glow */}
+          <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-[120px] -z-10" />
+
+          <PageWrapper>
+            {/* Header */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+              <div>
+                <h1 className="text-2xl font-bold text-foreground tracking-tight">Resource Action Center</h1>
+                <p className="text-muted-foreground text-sm mt-1 text-balance">
+                  Verify active permission grants and system states by dispatching authenticated requests to system APIs.
+                </p>
+              </div>
+              <Button onClick={handleReset} variant="outline" className="self-start md:self-auto gap-2 cursor-pointer">
+                <RotateCcw className="h-4 w-4" />
+                Reset Console
+              </Button>
             </div>
-            <Button onClick={handleReset} variant="outline" className="self-start md:self-auto gap-2">
-              <RotateCcw className="h-4 w-4" />
-              Reset Console
-            </Button>
-          </div>
 
-          {/* Action Grids */}
-          <motion.div
-            variants={staggerContainer}
-            initial="initial"
-            animate="animate"
-            className="grid grid-cols-1 xl:grid-cols-2 gap-5"
-          >
-            {resourceCategories.map((category, catIdx) => (
-              <motion.div key={category.title} variants={fadeInUp}>
-                <Card className="h-full">
-                  <CardHeader className="pb-4">
-                    <CardTitle className="text-base">{category.title}</CardTitle>
-                    <CardDescription className="text-xs">{category.description}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-2.5">
-                    {category.actions.map((item) => {
-                      const testResult = results[item.action];
-                      return (
-                        <div
-                          key={item.action}
-                          className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-background/60 border border-border/50 hover:border-border rounded-xl transition-all gap-3"
-                        >
-                          <div className="overflow-hidden pr-2">
-                            <div className="flex items-center gap-2">
-                              <Badge variant={getMethodBadgeVariant(item.method) as any} className="text-[9px] font-mono">
-                                {item.method}
-                              </Badge>
-                              <span className="text-sm font-medium text-foreground">{item.name}</span>
+
+
+            {/* Action Grids */}
+            <motion.div
+              variants={staggerContainer}
+              initial="initial"
+              animate="animate"
+              className="grid grid-cols-1 xl:grid-cols-2 gap-5"
+            >
+              {resourceCategories.map((category) => (
+                <motion.div key={category.title} variants={fadeInUp}>
+                  <Card className="h-full">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="text-base">{category.title}</CardTitle>
+                      <CardDescription className="text-xs">{category.description}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-2.5">
+                      {category.actions.map((item) => {
+                        const testResult = results[item.action];
+                        return (
+                          <div
+                            key={item.action}
+                            className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-background/60 border border-border/50 hover:border-border rounded-xl transition-all gap-3"
+                          >
+                            <div className="overflow-hidden pr-2">
+                              <div className="flex items-center gap-2">
+                                <Badge variant={getMethodBadgeVariant(item.method) as any} className="text-[9px] font-mono">
+                                  {item.method}
+                                </Badge>
+                                <span className="text-sm font-medium text-foreground">{item.name}</span>
+                              </div>
+                              <div className="text-[11px] font-mono text-muted-foreground mt-1 select-all">{item.action}</div>
                             </div>
-                            <div className="text-[11px] font-mono text-muted-foreground mt-1 select-all">{item.action}</div>
-                          </div>
 
-                          <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-auto">
-                            <AnimatePresence mode="wait">
-                              <motion.div
-                                key={testResult?.status || 'idle'}
-                                initial={{ opacity: 0, scale: 0.9 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.9 }}
-                                transition={{ duration: 0.15 }}
+                            <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-auto">
+                              <AnimatePresence mode="wait">
+                                <motion.div
+                                  key={testResult?.status || 'idle'}
+                                  initial={{ opacity: 0, scale: 0.9 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  exit={{ opacity: 0, scale: 0.9 }}
+                                  transition={{ duration: 0.15 }}
+                                >
+                                  {getStatusBadge(testResult)}
+                                </motion.div>
+                              </AnimatePresence>
+                              <Button
+                                onClick={() => handleTestAction(item)}
+                                disabled={testResult?.status === 'loading'}
+                                size="icon"
+                                className="h-8 w-8 rounded-lg cursor-pointer"
+                                title="Execute Test Request"
                               >
-                                {getStatusBadge(testResult)}
-                              </motion.div>
-                            </AnimatePresence>
-                            <Button
-                              onClick={() => handleTestAction(item)}
-                              disabled={testResult?.status === 'loading'}
-                              size="icon"
-                              className="h-8 w-8 rounded-lg"
-                              title="Execute Test Request"
-                            >
-                              <Play className="h-3.5 w-3.5 fill-current" />
-                            </Button>
+                                <Play className="h-3.5 w-3.5 fill-current" />
+                              </Button>
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </motion.div>
-        </PageWrapper>
+                        );
+                      })}
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))}
+            </motion.div>
+          </PageWrapper>
+        </div>
       </div>
     </div>
   );

@@ -2,8 +2,9 @@ import prisma from '../../config/db';
 import { POLICY_TYPES } from '../../config/constants';
 import { validateDelegationBypass } from '../policy/policy.service';
 import { UserWithPolicies } from '../../types';
+import { logAudit } from '../../shared/utils/audit.logger';
 
-export const createGroup = async ({ name, description }: any) => {
+export const createGroup = async (requestingUser: UserWithPolicies, { name, description }: any) => {
   const existingGroup = await prisma.group.findUnique({
     where: { name }
   });
@@ -14,12 +15,21 @@ export const createGroup = async ({ name, description }: any) => {
     throw error;
   }
 
-  return await prisma.group.create({
+  const newGroup = await prisma.group.create({
     data: {
       name,
       description
     }
   });
+
+  await logAudit(
+    requestingUser.id,
+    requestingUser.name || requestingUser.email,
+    'iam:CreateGroup',
+    `Created group '${newGroup.name}'`
+  );
+
+  return newGroup;
 };
 
 export const getAllGroups = async () => {
@@ -94,7 +104,7 @@ export const getGroupById = async (id: string) => {
   };
 };
 
-export const updateGroup = async (id: string, { name, description }: any) => {
+export const updateGroup = async (requestingUser: UserWithPolicies, id: string, { name, description }: any) => {
   const existingGroup = await prisma.group.findUnique({
     where: { id }
   });
@@ -120,13 +130,22 @@ export const updateGroup = async (id: string, { name, description }: any) => {
   if (name) updatedData.name = name;
   if (description !== undefined) updatedData.description = description;
 
-  return await prisma.group.update({
+  const updatedGroup = await prisma.group.update({
     where: { id },
     data: updatedData
   });
+
+  await logAudit(
+    requestingUser.id,
+    requestingUser.name || requestingUser.email,
+    'iam:UpdateGroup',
+    `Updated group '${updatedGroup.name}'`
+  );
+
+  return updatedGroup;
 };
 
-export const deleteGroup = async (id: string) => {
+export const deleteGroup = async (requestingUser: UserWithPolicies, id: string) => {
   const group = await prisma.group.findUnique({
     where: { id },
     include: {
@@ -171,10 +190,17 @@ export const deleteGroup = async (id: string) => {
     })
   ]);
 
+  await logAudit(
+    requestingUser.id,
+    requestingUser.name || requestingUser.email,
+    'iam:DeleteGroup',
+    `Deleted group '${group.name}'`
+  );
+
   return { message: 'Group deleted successfully.' };
 };
 
-export const addUserToGroup = async ({ groupId, userId }: any) => {
+export const addUserToGroup = async (requestingUser: UserWithPolicies, { groupId, userId }: any) => {
   const group = await prisma.group.findUnique({ where: { id: groupId } });
   if (!group) {
     const error: any = new Error('Group not found.');
@@ -201,15 +227,27 @@ export const addUserToGroup = async ({ groupId, userId }: any) => {
     throw error;
   }
 
-  return await prisma.userGroupMembership.create({
+  const membership = await prisma.userGroupMembership.create({
     data: {
       userId,
       groupId
     }
   });
+
+  await logAudit(
+    requestingUser.id,
+    requestingUser.name || requestingUser.email,
+    'iam:AddUserToGroup',
+    `Added user '${user.name}' to group '${group.name}'`
+  );
+
+  return membership;
 };
 
-export const removeUserFromGroup = async ({ groupId, userId }: any) => {
+export const removeUserFromGroup = async (requestingUser: UserWithPolicies, { groupId, userId }: any) => {
+  const group = await prisma.group.findUnique({ where: { id: groupId } });
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+
   const membership = await prisma.userGroupMembership.findUnique({
     where: {
       userId_groupId: { userId, groupId }
@@ -227,6 +265,13 @@ export const removeUserFromGroup = async ({ groupId, userId }: any) => {
       userId_groupId: { userId, groupId }
     }
   });
+
+  await logAudit(
+    requestingUser.id,
+    requestingUser.name || requestingUser.email,
+    'iam:RemoveUserFromGroup',
+    `Removed user '${user?.name || userId}' from group '${group?.name || groupId}'`
+  );
 
   return { message: 'User removed from group successfully.' };
 };
@@ -269,15 +314,27 @@ export const attachPolicyToGroup = async (requestingUser: UserWithPolicies, { gr
     throw error;
   }
 
-  return await prisma.groupPolicyAttachment.create({
+  const attachment = await prisma.groupPolicyAttachment.create({
     data: {
       groupId,
       policyId
     }
   });
+
+  await logAudit(
+    requestingUser.id,
+    requestingUser.name || requestingUser.email,
+    'iam:AttachGroupPolicy',
+    `Attached policy '${policy.name}' to group '${group.name}'`
+  );
+
+  return attachment;
 };
 
-export const detachPolicyFromGroup = async ({ groupId, policyId }: any) => {
+export const detachPolicyFromGroup = async (requestingUser: UserWithPolicies, { groupId, policyId }: any) => {
+  const group = await prisma.group.findUnique({ where: { id: groupId } });
+  const policy = await prisma.policy.findUnique({ where: { id: policyId } });
+
   const attachment = await prisma.groupPolicyAttachment.findUnique({
     where: {
       groupId_policyId: { groupId, policyId }
@@ -295,6 +352,13 @@ export const detachPolicyFromGroup = async ({ groupId, policyId }: any) => {
       groupId_policyId: { groupId, policyId }
     }
   });
+
+  await logAudit(
+    requestingUser.id,
+    requestingUser.name || requestingUser.email,
+    'iam:DetachGroupPolicy',
+    `Detached policy '${policy?.name || policyId}' from group '${group?.name || groupId}'`
+  );
 
   return { message: 'Policy detached from group successfully.' };
 };

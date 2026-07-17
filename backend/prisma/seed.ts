@@ -21,6 +21,10 @@ async function main() {
   await prisma.user.deleteMany({});
   await prisma.group.deleteMany({});
   await prisma.policy.deleteMany({});
+  await prisma.report.deleteMany({});
+  await prisma.alert.deleteMany({});
+  await prisma.setting.deleteMany({});
+  await prisma.auditLog.deleteMany({});
 
   // 3. Create Root User
   console.log('Seeding root user...');
@@ -135,6 +139,49 @@ async function main() {
     data: {
       userId: alice.id,
       groupId: viewers.id
+    }
+  });
+
+  // 9. Seed interactive reports
+  console.log('Seeding interactive reports...');
+  await prisma.report.createMany({
+    data: [
+      { name: 'Monthly Financial Statement Q1', category: 'Finance', createdBy: 'System' },
+      { name: 'Quarterly Security Penetration Audit', category: 'Security', createdBy: 'System' },
+      { name: 'Cloud Infrastructure Capacity Forecast', category: 'Infrastructure', createdBy: 'System' }
+    ]
+  });
+
+  // 10. Seed active alerts
+  console.log('Seeding alerts...');
+  await prisma.alert.createMany({
+    data: [
+      { title: 'PostgreSQL Database Load Alert (CPU > 85%)', severity: 'HIGH', acknowledged: false },
+      { title: 'Multiple Failed Login Attempts from Unrecognized IP', severity: 'CRITICAL', acknowledged: false },
+      { title: 'Cloud Storage Capacity Exceeding 90% Limit', severity: 'WARNING', acknowledged: true }
+    ]
+  });
+
+  // 11. Seed global settings
+  console.log('Seeding settings...');
+  await prisma.setting.create({
+    data: {
+      id: 'global',
+      sessionTimeout: 30,
+      mfaRequired: false,
+      allowedIps: '127.0.0.1, 192.168.1.1',
+      updatedBy: 'System'
+    }
+  });
+
+  // 12. Seed initial audit log entry
+  console.log('Seeding initial audit logs...');
+  await prisma.auditLog.create({
+    data: {
+      userId: root.id,
+      userName: root.name,
+      action: 'system:SeedDatabase',
+      details: 'System database initialization and default seeding completed successfully.'
     }
   });
 

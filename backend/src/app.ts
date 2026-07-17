@@ -17,9 +17,6 @@ import { errorResponse } from './shared/utils/response';
 
 const app = express();
 
-// Disable ETags globally to prevent 304 Not Modified caching and force 200 OK
-app.disable('etag');
-
 // Middlewares
 app.use(cors());
 app.use(express.json());

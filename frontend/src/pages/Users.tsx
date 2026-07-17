@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import Sidebar from '../components/Sidebar';
+import TopNavbar from '../components/TopNavbar';
 import api from '../services/api';
-import { ChevronLeft, ChevronDown, ChevronUp, AlertCircle, Search, X, Check, Eye, Plus, ShieldCheck, Shield, Trash2, Key, Users as UsersIcon, ShieldAlert } from 'lucide-react';
+import { ChevronLeft, ChevronDown, ChevronUp, AlertCircle, Search, X, Check, Eye, Plus, ShieldCheck, Shield, Trash2, Key, Users as UsersIcon, ShieldAlert, UserPlus } from 'lucide-react';
 import { User, Policy } from '../types/iam';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { PageWrapper } from '@/components/ui/motion';
 import { useAuth } from '../context/AuthContext';
+import { z } from 'zod';
 
 const ACTIONS_BY_NAMESPACE: Record<string, string[]> = {
   Reports: ['reports:List', 'reports:Read', 'reports:Create', 'reports:Update', 'reports:Delete'],
@@ -47,6 +49,26 @@ const Users = () => {
   const [showBoundaryDropdown, setShowBoundaryDropdown] = useState(false);
   const [policySearchText, setPolicySearchText] = useState('');
   const [boundarySearchText, setBoundarySearchText] = useState('');
+  const [summaryResource, setSummaryResource] = useState('*');
+  const [availableReports, setAvailableReports] = useState<{ id: string; name: string }[]>([]);
+  const [availableAlerts, setAvailableAlerts] = useState<{ id: string; title: string }[]>([]);
+
+  // Create user states
+  const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [selectedPoliciesForNewUser, setSelectedPoliciesForNewUser] = useState<string[]>([]);
+  const [selectedGroupsForNewUser, setSelectedGroupsForNewUser] = useState<string[]>([]);
+  const [selectedBoundaryForNewUser, setSelectedBoundaryForNewUser] = useState<string>('');
+  const [createUserError, setCreateUserError] = useState('');
+  const [allGroups, setAllGroups] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (showCreateUserModal) {
+      fetchAvailablePolicies();
+    }
+  }, [showCreateUserModal]);
 
   // UI state
   const [searchQuery, setSearchQuery] = useState('');
@@ -92,21 +114,37 @@ const Users = () => {
     await queryClient.invalidateQueries({ queryKey: ['users'] });
   };
 
-  const fetchUserDetails = async (id: string) => {
+  const fetchUserDetails = async (id: string, resource: string = '*') => {
     setLoading(true);
     setError('');
     try {
-      const res = await api.get(`/iam/users/${id}`);
+      const res = await api.get(`/iam/users/${id}?resource=${encodeURIComponent(resource)}`);
       setSelectedUser(res.data.data);
       setExpandedGroups({});
       setView('detail');
 
       // Pre-fetch managed policies for attach / boundary
       fetchAvailablePolicies();
+      fetchResourcesForUsers();
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to fetch user profile details.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchResourcesForUsers = async () => {
+    try {
+      const reportsRes = await api.get('/reports');
+      setAvailableReports(reportsRes.data.data || []);
+    } catch (e) {
+      console.warn("Could not fetch reports for users profile view", e);
+    }
+    try {
+      const alertsRes = await api.get('/alerts');
+      setAvailableAlerts(alertsRes.data.data || []);
+    } catch (e) {
+      console.warn("Could not fetch alerts for users profile view", e);
     }
   };
 
@@ -118,6 +156,12 @@ const Users = () => {
     } catch (err: any) {
       console.error('Failed to load policies', err);
     }
+    try {
+      const res = await api.get('/iam/groups');
+      setAllGroups(res.data.data || []);
+    } catch (err: any) {
+      console.error('Failed to load groups', err);
+    }
   };
 
   const handleAttachPolicy = async (policyId: string) => {
@@ -126,7 +170,7 @@ const Users = () => {
       await api.post(`/iam/users/${selectedUser.id}/policies`, { policyId });
       setShowAttachPolicyDropdown(false);
       setPolicySearchText('');
-      fetchUserDetails(selectedUser.id);
+      fetchUserDetails(selectedUser.id, summaryResource);
       setSuccess('Policy attached to user.');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to attach policy directly.');
@@ -137,7 +181,7 @@ const Users = () => {
     setError('');
     try {
       await api.delete(`/iam/users/${selectedUser.id}/policies/${policyId}`);
-      fetchUserDetails(selectedUser.id);
+      fetchUserDetails(selectedUser.id, summaryResource);
       setSuccess('Policy detached from user.');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to detach policy.');
@@ -150,7 +194,7 @@ const Users = () => {
       await api.put(`/iam/users/${selectedUser.id}/boundary`, { policyId });
       setShowBoundaryDropdown(false);
       setBoundarySearchText('');
-      fetchUserDetails(selectedUser.id);
+      fetchUserDetails(selectedUser.id, summaryResource);
       setSuccess('Permission boundary set successfully.');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to set permission boundary.');
@@ -161,7 +205,7 @@ const Users = () => {
     setError('');
     try {
       await api.delete(`/iam/users/${selectedUser.id}/boundary`);
-      fetchUserDetails(selectedUser.id);
+      fetchUserDetails(selectedUser.id, summaryResource);
       setSuccess('Permission boundary removed.');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to remove permission boundary.');
@@ -173,6 +217,57 @@ const Users = () => {
       ...prev,
       [groupId]: !prev[groupId]
     }));
+  };
+
+  const handleCreateUserSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreateUserError('');
+    setLoading(true);
+
+    const validation = z.object({
+      name: z.string().trim()
+        .min(1, 'Name is required.')
+        .min(2, 'Name must be at least 2 characters long.'),
+      email: z.string().trim()
+        .min(1, 'Email is required.')
+        .email('Invalid email address format.'),
+      password: z.string()
+        .min(8, 'Password must be at least 8 characters long.')
+        .regex(/[0-9]/, 'Password must contain at least one digit (0-9).')
+        .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character (e.g., !@#$%^&*).'),
+    }).safeParse({
+      name: newUserName,
+      email: newUserEmail,
+      password: newUserPassword
+    });
+
+    if (!validation.success) {
+      setCreateUserError(validation.error.issues[0].message);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      await api.post('/auth/register', {
+        ...validation.data,
+        policyIds: selectedPoliciesForNewUser,
+        groupIds: selectedGroupsForNewUser,
+        boundaryPolicyId: selectedBoundaryForNewUser || null
+      });
+      setSuccess('User account registered successfully.');
+      setNewUserName('');
+      setNewUserEmail('');
+      setNewUserPassword('');
+      setSelectedPoliciesForNewUser([]);
+      setSelectedGroupsForNewUser([]);
+      setSelectedBoundaryForNewUser('');
+      setShowCreateUserModal(false);
+      fetchUsers();
+    } catch (err: any) {
+      setCreateUserError(err.response?.data?.message || 'Failed to register user.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const filteredUsers = users.filter(u =>
@@ -194,52 +289,59 @@ const Users = () => {
   if (queryError && (queryError as any).response?.status === 403) {
     const message = (queryError as any).response?.data?.message || '';
     const missingPermission = message.match(/perform\s+([a-zA-Z0-9:]+)/)?.[1] || 'iam:ListUsers';
-    
+
     return (
       <div className="flex h-screen bg-background overflow-hidden text-foreground">
         <Sidebar />
-        <div className="flex-1 flex items-center justify-center p-8 relative">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-destructive/5 rounded-full blur-[120px] -z-10" />
-          <div className="absolute bottom-0 left-0 w-96 h-96 bg-primary/5 rounded-full blur-[120px] -z-10" />
 
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="max-w-md w-full bg-card border border-destructive/20 rounded-2xl shadow-2xl p-8 text-center space-y-6 relative overflow-hidden"
-          >
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-destructive via-red-500 to-destructive" />
-            
-            <div className="mx-auto w-16 h-16 bg-destructive/10 text-destructive border border-destructive/20 rounded-full flex items-center justify-center shadow-lg shadow-destructive/10 animate-pulse">
-              <ShieldAlert className="h-8 w-8" />
-            </div>
+        {/* Main Content Container */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          <TopNavbar />
 
-            <div className="space-y-2">
-              <h2 className="text-xl font-bold tracking-tight text-foreground flex items-center justify-center gap-2">
-                🛡️ Permission Denied
-              </h2>
-              <p className="text-[11px] font-bold text-destructive uppercase tracking-widest bg-destructive/5 py-1 px-3 rounded-full inline-block border border-destructive/10">
-                403 Forbidden
-              </p>
-            </div>
+          {/* Scrollable Page Body */}
+          <div className="flex-1 flex items-center justify-center p-8 relative overflow-y-auto">
+            <div className="absolute top-0 right-0 w-96 h-96 bg-destructive/5 rounded-full blur-[120px] -z-10" />
+            <div className="absolute bottom-0 left-0 w-96 h-96 bg-primary/5 rounded-full blur-[120px] -z-10" />
 
-            <div className="space-y-3 p-4 bg-background/50 border border-border/40 rounded-xl">
-              <div className="text-xs text-muted-foreground font-medium">Missing Permission</div>
-              <div className="font-mono text-sm text-foreground bg-muted/60 py-1.5 px-3 rounded-lg border border-border/50 select-all font-semibold inline-block">
-                {missingPermission}
-              </div>
-              <p className="text-xs text-muted-foreground leading-relaxed pt-1">
-                You do not have the required permissions in your attached identity policies or groups to access this console page.
-              </p>
-            </div>
-
-            <Button
-              variant="outline"
-              className="w-full text-xs font-semibold cursor-pointer border-border hover:bg-muted/50"
-              onClick={() => window.location.href = '/dashboard'}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="max-w-md w-full bg-card border border-destructive/20 rounded-2xl shadow-2xl p-8 text-center space-y-6 relative overflow-hidden"
             >
-              Return to Dashboard
-            </Button>
-          </motion.div>
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-destructive via-red-500 to-destructive" />
+
+              <div className="mx-auto w-16 h-16 bg-destructive/10 text-destructive border border-destructive/20 rounded-full flex items-center justify-center shadow-lg shadow-destructive/10 animate-pulse">
+                <ShieldAlert className="h-8 w-8" />
+              </div>
+
+              <div className="space-y-2">
+                <h2 className="text-xl font-bold tracking-tight text-foreground flex items-center justify-center gap-2">
+                  🛡️ Permission Denied
+                </h2>
+                <p className="text-[11px] font-bold text-destructive uppercase tracking-widest bg-destructive/5 py-1 px-3 rounded-full inline-block border border-destructive/10">
+                  403 Forbidden
+                </p>
+              </div>
+
+              <div className="space-y-3 p-4 bg-background/50 border border-border/40 rounded-xl">
+                <div className="text-xs text-muted-foreground font-medium">Missing Permission</div>
+                <div className="font-mono text-sm text-foreground bg-muted/60 py-1.5 px-3 rounded-lg border border-border/50 select-all font-semibold inline-block">
+                  {missingPermission}
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed pt-1">
+                  You do not have the required permissions in your attached identity policies or groups to access this console page.
+                </p>
+              </div>
+
+              <Button
+                variant="outline"
+                className="w-full text-xs font-semibold cursor-pointer border-border hover:bg-muted/50"
+                onClick={() => window.location.href = '/dashboard'}
+              >
+                Return to Dashboard
+              </Button>
+            </motion.div>
+          </div>
         </div>
       </div>
     );
@@ -249,290 +351,218 @@ const Users = () => {
     <div className="flex h-screen bg-background overflow-hidden text-foreground">
       <Sidebar />
 
-      <div className="flex-1 overflow-y-auto p-8 relative flex flex-col">
-        {/* Background glow */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-[120px] -z-10" />
+      {/* Main Content Container */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <TopNavbar />
 
-        <PageWrapper className="flex-1 flex flex-col min-h-0">
-          {/* Floating Toast Error alert */}
-          <AnimatePresence>
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, y: -20, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -20, scale: 0.95 }}
-                className="fixed top-6 right-6 z-50 p-4 bg-destructive/15 border border-destructive/25 text-destructive rounded-xl flex items-start gap-3 w-[400px] max-w-[calc(100vw-32px)] shadow-2xl backdrop-blur-md"
-              >
-                <div className="w-5.5 h-5.5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center shrink-0 shadow-lg shadow-destructive/20 mt-0.5">
-                  <AlertCircle className="h-4 w-4" />
-                </div>
-                <div className="flex-1 min-w-0 pr-2">
-                  <div className="font-bold text-foreground text-sm mb-0.5">
-                    {error.toLowerCase().includes('bypass') || error.toLowerCase().includes('possess') || error.toLowerCase().includes('permission') ? 'Access Denied' : 'Security Alert'}
-                  </div>
-                  <p className="text-xs leading-relaxed text-destructive/90">{error}</p>
-                </div>
-                <button 
-                  onClick={() => setError('')} 
-                  className="text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg p-1 transition-colors shrink-0 cursor-pointer"
+        {/* Scrollable Page Body */}
+        <div className="flex-1 overflow-y-auto p-8 relative flex flex-col">
+          {/* Background glow */}
+          <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-[120px] -z-10" />
+
+          <PageWrapper className="flex-1 flex flex-col min-h-0">
+            {/* Floating Toast Error alert */}
+            <AnimatePresence>
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                  className="fixed top-6 right-6 z-50 p-4 bg-destructive/15 border border-destructive/25 text-destructive rounded-xl flex items-start gap-3 w-[400px] max-w-[calc(100vw-32px)] shadow-2xl backdrop-blur-md"
                 >
-                  <X className="h-4 w-4" />
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Floating Toast Success Alert */}
-          <AnimatePresence>
-            {success && (
-              <motion.div
-                initial={{ opacity: 0, y: -20, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -20, scale: 0.95 }}
-                className="fixed top-6 right-6 z-50 p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl flex items-start gap-3 w-[400px] max-w-[calc(100vw-32px)] shadow-2xl backdrop-blur-md"
-              >
-                <div className="w-5.5 h-5.5 bg-emerald-500 text-white rounded-full flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/20 mt-0.5">
-                  <Check className="h-4 w-4" />
-                </div>
-                <div className="flex-1 min-w-0 pr-2">
-                  <div className="font-bold text-foreground text-sm mb-0.5">Success</div>
-                  <p className="text-xs leading-relaxed text-emerald-400/90">{success}</p>
-                </div>
-                <button 
-                  onClick={() => setSuccess('')} 
-                  className="text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg p-1 transition-colors shrink-0 cursor-pointer"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* LIST VIEW */}
-          {view === 'list' && (
-            <>
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 shrink-0">
-                <div>
-                  <h1 className="text-2xl font-bold text-foreground tracking-tight">Organization Users</h1>
-                  <p className="text-muted-foreground text-sm mt-1">
-                    Inspect user accounts, manage their direct policies, boundaries, and view calculated effective permissions.
-                  </p>
-                </div>
-              </div>
-
-              {/* Search */}
-              <div className="relative mb-5 shrink-0 max-w-md">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted-foreground">
-                  <Search className="h-4 w-4" />
-                </div>
-                <Input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search users by name or email..."
-                  className="pl-10"
-                />
-              </div>
-
-              {/* Users Table */}
-              <Card className="flex-1 min-h-0 flex flex-col overflow-hidden">
-                <div className="flex-1 overflow-y-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted/20 hover:bg-muted/20">
-                        <TableHead className="pl-6">User details</TableHead>
-                        <TableHead>Direct policies</TableHead>
-                        <TableHead>Groups membership</TableHead>
-                        <TableHead className="text-center">Permission boundary</TableHead>
-                        <TableHead className="pr-6 text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {(loading || isUsersLoading) && users.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={5} className="p-8 text-center text-muted-foreground">
-                            Fetching users list...
-                          </TableCell>
-                        </TableRow>
-                      ) : filteredUsers.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={5} className="p-8 text-center text-muted-foreground">
-                            No users matching search query.
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        filteredUsers.map((u) => {
-                          const directCount = u.directPolicyCount || 0;
-                          const groupCount = u.groupCount || 0;
-                          return (
-                            <TableRow key={u.id} className="group">
-                              <TableCell className="pl-6">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-semibold text-foreground group-hover:text-primary transition-colors">
-                                    {u.name}
-                                  </span>
-                                  {u.isRoot && (
-                                    <Badge variant="destructive" className="text-[9px]">Root</Badge>
-                                  )}
-                                </div>
-                                <div className="text-xs text-muted-foreground mt-0.5 select-all">{u.email}</div>
-                              </TableCell>
-                              <TableCell className="text-sm font-medium text-foreground/80">
-                                {directCount} {directCount === 1 ? 'policy' : 'policies'}
-                              </TableCell>
-                              <TableCell className="text-sm font-medium text-foreground/80">
-                                {groupCount} {groupCount === 1 ? 'group' : 'groups'}
-                              </TableCell>
-                              <TableCell className="text-center">
-                                {u.boundary === 'yes' ? (
-                                  <Badge variant="success" className="text-[9px] font-bold tracking-wider px-2">
-                                    YES
-                                  </Badge>
-                                ) : (
-                                  <Badge variant="outline" className="text-[9px] font-bold tracking-wider px-2 text-muted-foreground/60 border-border/40">
-                                    NO
-                                  </Badge>
-                                )}
-                              </TableCell>
-                              <TableCell className="pr-6 text-right">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => fetchUserDetails(u.id)}
-                                  className="gap-1.5 h-8 text-xs"
-                                >
-                                  <Eye className="h-3.5 w-3.5" />
-                                  Details
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </Card>
-            </>
-          )}
-
-          {/* DETAIL VIEW */}
-          {view === 'detail' && selectedUser && (
-            <div className="flex-1 flex flex-col min-h-0">
-              {/* Header */}
-              <div className="flex items-center gap-3 mb-6 shrink-0">
-                <Button variant="outline" size="icon" onClick={() => setView('list')} className="h-9 w-9">
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h1 className="text-xl font-bold text-foreground">{selectedUser.name}</h1>
-                    {selectedUser.isRoot && (
-                      <Badge variant="destructive" className="text-[9px]">Root</Badge>
-                    )}
+                  <div className="w-5.5 h-5.5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center shrink-0 shadow-lg shadow-destructive/20 mt-0.5">
+                    <AlertCircle className="h-4 w-4" />
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">{selectedUser.email}</p>
+                  <div className="flex-1 min-w-0 pr-2">
+                    <div className="font-bold text-foreground text-sm mb-0.5">
+                      {error.toLowerCase().includes('bypass') || error.toLowerCase().includes('possess') || error.toLowerCase().includes('permission') ? 'Access Denied' : 'Security Alert'}
+                    </div>
+                    <p className="text-xs leading-relaxed text-destructive/90">{error}</p>
+                  </div>
+                  <button
+                    onClick={() => setError('')}
+                    className="text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg p-1 transition-colors shrink-0 cursor-pointer"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Floating Toast Success Alert */}
+            <AnimatePresence>
+              {success && (
+                <motion.div
+                  initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                  className="fixed top-6 right-6 z-50 p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl flex items-start gap-3 w-[400px] max-w-[calc(100vw-32px)] shadow-2xl backdrop-blur-md"
+                >
+                  <div className="w-5.5 h-5.5 bg-emerald-500 text-white rounded-full flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/20 mt-0.5">
+                    <Check className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1 min-w-0 pr-2">
+                    <div className="font-bold text-foreground text-sm mb-0.5">Success</div>
+                    <p className="text-xs leading-relaxed text-emerald-400/90">{success}</p>
+                  </div>
+                  <button
+                    onClick={() => setSuccess('')}
+                    className="text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg p-1 transition-colors shrink-0 cursor-pointer"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* LIST VIEW */}
+            {view === 'list' && (
+              <>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 shrink-0">
+                  <div>
+                    <h1 className="text-2xl font-bold text-foreground tracking-tight">Organization Users</h1>
+                    <p className="text-muted-foreground text-sm mt-1">
+                      Inspect user accounts, manage their direct policies, boundaries, and view calculated effective permissions.
+                    </p>
+                  </div>
+                  {currentUser?.isRoot && (
+                    <Button onClick={() => setShowCreateUserModal(true)} className="gap-1.5 h-9 text-xs">
+                      <UserPlus className="h-4 w-4" />
+                      Add User Account
+                    </Button>
+                  )}
                 </div>
-              </div>
 
-              {/* Content columns */}
-              <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-3 gap-5">
-                
-                {/* LEFT & CENTER: POLICIES, BOUNDARIES AND EFFECTIVE GRID (2 cols) */}
-                <div className="xl:col-span-2 flex flex-col min-h-0 space-y-5">
-                  
-                  {/* Upper: Policies and Boundary */}
-                  <div className={`grid grid-cols-1 gap-5 shrink-0 ${currentUser?.isRoot ? 'lg:grid-cols-2' : 'lg:grid-cols-1'}`}>
-                    
-                    {/* Direct Policies */}
-                    <Card className={`flex flex-col relative ${showAttachPolicyDropdown ? 'z-30' : 'z-10'}`}>
-                      <CardHeader className="pb-3">
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="text-sm flex items-center gap-2">
-                            <Key className="h-4 w-4 text-primary" />
-                            Direct Policies
-                          </CardTitle>
+                {/* Search */}
+                <div className="relative mb-5 shrink-0 max-w-md">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted-foreground">
+                    <Search className="h-4 w-4" />
+                  </div>
+                  <Input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search users by name or email..."
+                    className="pl-10"
+                  />
+                </div>
 
-                          <div className="relative">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setPolicySearchText('');
-                                setShowAttachPolicyDropdown(!showAttachPolicyDropdown);
-                                setShowBoundaryDropdown(false);
-                              }}
-                              className="gap-1 h-7 text-xs"
-                            >
-                              <Plus className="h-3 w-3" />
-                              Attach
-                            </Button>
-
-                            <AnimatePresence>
-                              {showAttachPolicyDropdown && (
-                                <motion.div
-                                  initial={{ opacity: 0, y: -4 }}
-                                  animate={{ opacity: 1, y: 0 }}
-                                  exit={{ opacity: 0, y: -4 }}
-                                  className="absolute right-0 mt-2 p-3 bg-card border border-border rounded-xl shadow-2xl z-20 w-72 flex flex-col max-h-[200px]"
-                                >
-                                  <Input
-                                    value={policySearchText}
-                                    onChange={(e) => setPolicySearchText(e.target.value)}
-                                    placeholder="Search managed policies..."
-                                    className="mb-2 h-8 text-xs"
-                                  />
-                                  <div className="flex-1 overflow-y-auto space-y-0.5">
-                                    {attachablePolicies.length === 0 ? (
-                                      <p className="text-xs text-muted-foreground italic p-2 text-center">No attachable policies.</p>
-                                    ) : (
-                                      attachablePolicies.map(p => (
-                                        <button
-                                          key={p.id}
-                                          onClick={() => handleAttachPolicy(p.id)}
-                                          className="w-full text-left px-2 py-1.5 hover:bg-muted/50 rounded-lg text-xs text-foreground/80 hover:text-foreground transition-colors"
-                                        >
-                                          {p.name}
-                                        </button>
-                                      ))
+                {/* Users Table */}
+                <Card className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                  <div className="flex-1 overflow-y-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/20 hover:bg-muted/20">
+                          <TableHead className="pl-6">User details</TableHead>
+                          <TableHead>Direct policies</TableHead>
+                          <TableHead>Groups membership</TableHead>
+                          <TableHead className="text-center">Permission boundary</TableHead>
+                          <TableHead className="pr-6 text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {(loading || isUsersLoading) && users.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={5} className="p-8 text-center text-muted-foreground">
+                              Fetching users list...
+                            </TableCell>
+                          </TableRow>
+                        ) : filteredUsers.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={5} className="p-8 text-center text-muted-foreground">
+                              No users matching search query.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          filteredUsers.map((u) => {
+                            const directCount = u.directPolicyCount || 0;
+                            const groupCount = u.groupCount || 0;
+                            return (
+                              <TableRow key={u.id} className="group">
+                                <TableCell className="pl-6">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-semibold text-foreground group-hover:text-primary transition-colors">
+                                      {u.name}
+                                    </span>
+                                    {u.isRoot && (
+                                      <Badge variant="destructive" className="text-[9px]">Root</Badge>
                                     )}
                                   </div>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-                          </div>
-                        </div>
-                      </CardHeader>
-
-                      <CardContent className="flex-1 overflow-y-auto max-h-[160px] space-y-2 pr-1">
-                        {!selectedUser.directPolicies || selectedUser.directPolicies.length === 0 ? (
-                          <p className="text-xs text-muted-foreground italic p-2">No direct policy attachments.</p>
-                        ) : (
-                          selectedUser.directPolicies.map((p: any) => (
-                            <div key={p.id} className="flex items-center justify-between p-2.5 bg-background/60 border border-border/50 rounded-lg text-xs">
-                              <span className="font-medium text-foreground/80">{p.name}</span>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleDetachPolicy(p.id)}
-                                className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                                title="Detach policy"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          ))
+                                  <div className="text-xs text-muted-foreground mt-0.5 select-all">{u.email}</div>
+                                </TableCell>
+                                <TableCell className="text-sm font-medium text-foreground/80">
+                                  {directCount} {directCount === 1 ? 'policy' : 'policies'}
+                                </TableCell>
+                                <TableCell className="text-sm font-medium text-foreground/80">
+                                  {groupCount} {groupCount === 1 ? 'group' : 'groups'}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  {u.boundary === 'yes' ? (
+                                    <Badge variant="success" className="text-[9px] font-bold tracking-wider px-2">
+                                      YES
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="text-[9px] font-bold tracking-wider px-2 text-muted-foreground/60 border-border/40">
+                                      NO
+                                    </Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell className="pr-6 text-right">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => fetchUserDetails(u.id)}
+                                    className="gap-1.5 h-8 text-xs"
+                                  >
+                                    <Eye className="h-3.5 w-3.5" />
+                                    Details
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })
                         )}
-                      </CardContent>
-                    </Card>
+                      </TableBody>
+                    </Table>
+                  </div>
+                </Card>
+              </>
+            )}
 
-                    {/* Permission Boundary */}
-                    {currentUser?.isRoot && (
-                      <Card className={`flex flex-col relative ${showBoundaryDropdown ? 'z-30' : 'z-10'}`}>
+            {/* DETAIL VIEW */}
+            {view === 'detail' && selectedUser && (
+              <div className="flex-1 flex flex-col min-h-0">
+                {/* Header */}
+                <div className="flex items-center gap-3 mb-6 shrink-0">
+                  <Button variant="outline" size="icon" onClick={() => setView('list')} className="h-9 w-9">
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h1 className="text-xl font-bold text-foreground">{selectedUser.name}</h1>
+                      {selectedUser.isRoot && (
+                        <Badge variant="destructive" className="text-[9px]">Root</Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">{selectedUser.email}</p>
+                  </div>
+                </div>
+
+                {/* Content columns */}
+                <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-3 gap-5">
+
+                  {/* LEFT & CENTER: POLICIES, BOUNDARIES AND EFFECTIVE GRID (2 cols) */}
+                  <div className="xl:col-span-2 flex flex-col min-h-0 space-y-5">
+
+                    {/* Upper: Policies and Boundary */}
+                    <div className={`grid grid-cols-1 gap-5 shrink-0 ${currentUser?.isRoot ? 'lg:grid-cols-2' : 'lg:grid-cols-1'}`}>
+
+                      {/* Direct Policies */}
+                      <Card className={`flex flex-col relative ${showAttachPolicyDropdown ? 'z-30' : 'z-10'}`}>
                         <CardHeader className="pb-3">
                           <div className="flex items-center justify-between">
                             <CardTitle className="text-sm flex items-center gap-2">
-                              <Shield className="h-4 w-4 text-primary" />
-                              Permission Boundary
+                              <Key className="h-4 w-4 text-primary" />
+                              Direct Policies
                             </CardTitle>
 
                             <div className="relative">
@@ -540,17 +570,18 @@ const Users = () => {
                                 variant="outline"
                                 size="sm"
                                 onClick={() => {
-                                  setBoundarySearchText('');
-                                  setShowBoundaryDropdown(!showBoundaryDropdown);
-                                  setShowAttachPolicyDropdown(false);
+                                  setPolicySearchText('');
+                                  setShowAttachPolicyDropdown(!showAttachPolicyDropdown);
+                                  setShowBoundaryDropdown(false);
                                 }}
-                                className="h-7 text-xs"
+                                className="gap-1 h-7 text-xs"
                               >
-                                Set Boundary
+                                <Plus className="h-3 w-3" />
+                                Attach
                               </Button>
 
                               <AnimatePresence>
-                                {showBoundaryDropdown && (
+                                {showAttachPolicyDropdown && (
                                   <motion.div
                                     initial={{ opacity: 0, y: -4 }}
                                     animate={{ opacity: 1, y: 0 }}
@@ -558,19 +589,19 @@ const Users = () => {
                                     className="absolute right-0 mt-2 p-3 bg-card border border-border rounded-xl shadow-2xl z-20 w-72 flex flex-col max-h-[200px]"
                                   >
                                     <Input
-                                      value={boundarySearchText}
-                                      onChange={(e) => setBoundarySearchText(e.target.value)}
-                                      placeholder="Search boundary policies..."
+                                      value={policySearchText}
+                                      onChange={(e) => setPolicySearchText(e.target.value)}
+                                      placeholder="Search managed policies..."
                                       className="mb-2 h-8 text-xs"
                                     />
                                     <div className="flex-1 overflow-y-auto space-y-0.5">
-                                      {filterBoundaryPolicies.length === 0 ? (
-                                        <p className="text-xs text-muted-foreground italic p-2 text-center">No policies found.</p>
+                                      {attachablePolicies.length === 0 ? (
+                                        <p className="text-xs text-muted-foreground italic p-2 text-center">No attachable policies.</p>
                                       ) : (
-                                        filterBoundaryPolicies.map(p => (
+                                        attachablePolicies.map(p => (
                                           <button
                                             key={p.id}
-                                            onClick={() => handleSetBoundary(p.id)}
+                                            onClick={() => handleAttachPolicy(p.id)}
                                             className="w-full text-left px-2 py-1.5 hover:bg-muted/50 rounded-lg text-xs text-foreground/80 hover:text-foreground transition-colors"
                                           >
                                             {p.name}
@@ -585,158 +616,468 @@ const Users = () => {
                           </div>
                         </CardHeader>
 
-                        <CardContent className="flex-1 flex flex-col justify-center">
-                          {selectedUser.boundary ? (
-                            <div className="p-3 bg-primary/5 border border-primary/20 rounded-xl text-xs space-y-3">
-                              <div className="flex items-start justify-between">
-                                <div>
-                                  <div className="font-bold text-primary flex items-center gap-1">
-                                    <ShieldCheck className="h-4 w-4 shrink-0" />
-                                    <span>Boundary Enforced:</span>
-                                  </div>
-                                  <div className="text-foreground/80 font-semibold mt-1 font-mono">{selectedUser.boundary.name}</div>
-                                </div>
+                        <CardContent className="flex-1 overflow-y-auto max-h-[160px] space-y-2 pr-1">
+                          {!selectedUser.directPolicies || selectedUser.directPolicies.length === 0 ? (
+                            <p className="text-xs text-muted-foreground italic p-2">No direct policy attachments.</p>
+                          ) : (
+                            selectedUser.directPolicies.map((p: any) => (
+                              <div key={p.id} className="flex items-center justify-between p-2.5 bg-background/60 border border-border/50 rounded-lg text-xs">
+                                <span className="font-medium text-foreground/80">{p.name}</span>
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  onClick={handleRemoveBoundary}
-                                  className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                                  title="Remove boundary"
+                                  onClick={() => handleDetachPolicy(p.id)}
+                                  className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                  title="Detach policy"
                                 >
-                                  <X className="h-4 w-4" />
+                                  <Trash2 className="h-3 w-3" />
                                 </Button>
                               </div>
-                              <p className="text-[10px] text-muted-foreground leading-normal">
-                                This boundary restricts the maximum permission depth allowed for the user, overriding any Allow statements.
-                              </p>
-                            </div>
-                          ) : (
-                            <div className="p-4 text-center border border-dashed border-border rounded-xl text-xs text-muted-foreground">
-                              No permission boundary set. User can execute all actions granted by direct or group policies.
-                            </div>
+                            ))
                           )}
                         </CardContent>
                       </Card>
-                    )}
+
+                      {/* Permission Boundary */}
+                      {currentUser?.isRoot && (
+                        <Card className={`flex flex-col relative ${showBoundaryDropdown ? 'z-30' : 'z-10'}`}>
+                          <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between">
+                              <CardTitle className="text-sm flex items-center gap-2">
+                                <Shield className="h-4 w-4 text-primary" />
+                                Permission Boundary
+                              </CardTitle>
+
+                              <div className="relative">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setBoundarySearchText('');
+                                    setShowBoundaryDropdown(!showBoundaryDropdown);
+                                    setShowAttachPolicyDropdown(false);
+                                  }}
+                                  className="h-7 text-xs"
+                                >
+                                  Set Boundary
+                                </Button>
+
+                                <AnimatePresence>
+                                  {showBoundaryDropdown && (
+                                    <motion.div
+                                      initial={{ opacity: 0, y: -4 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      exit={{ opacity: 0, y: -4 }}
+                                      className="absolute right-0 mt-2 p-3 bg-card border border-border rounded-xl shadow-2xl z-20 w-72 flex flex-col max-h-[200px]"
+                                    >
+                                      <Input
+                                        value={boundarySearchText}
+                                        onChange={(e) => setBoundarySearchText(e.target.value)}
+                                        placeholder="Search boundary policies..."
+                                        className="mb-2 h-8 text-xs"
+                                      />
+                                      <div className="flex-1 overflow-y-auto space-y-0.5">
+                                        {filterBoundaryPolicies.length === 0 ? (
+                                          <p className="text-xs text-muted-foreground italic p-2 text-center">No policies found.</p>
+                                        ) : (
+                                          filterBoundaryPolicies.map(p => (
+                                            <button
+                                              key={p.id}
+                                              onClick={() => handleSetBoundary(p.id)}
+                                              className="w-full text-left px-2 py-1.5 hover:bg-muted/50 rounded-lg text-xs text-foreground/80 hover:text-foreground transition-colors"
+                                            >
+                                              {p.name}
+                                            </button>
+                                          ))
+                                        )}
+                                      </div>
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+                              </div>
+                            </div>
+                          </CardHeader>
+
+                          <CardContent className="flex-1 flex flex-col justify-center">
+                            {selectedUser.boundary ? (
+                              <div className="p-3 bg-primary/5 border border-primary/20 rounded-xl text-xs space-y-3">
+                                <div className="flex items-start justify-between">
+                                  <div>
+                                    <div className="font-bold text-primary flex items-center gap-1">
+                                      <ShieldCheck className="h-4 w-4 shrink-0" />
+                                      <span>Boundary Enforced:</span>
+                                    </div>
+                                    <div className="text-foreground/80 font-semibold mt-1 font-mono">{selectedUser.boundary.name}</div>
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={handleRemoveBoundary}
+                                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                    title="Remove boundary"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                                <p className="text-[10px] text-muted-foreground leading-normal">
+                                  This boundary restricts the maximum permission depth allowed for the user, overriding any Allow statements.
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="p-4 text-center border border-dashed border-border rounded-xl text-xs text-muted-foreground">
+                                No permission boundary set. User can execute all actions granted by direct or group policies.
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      )}
+                    </div>
+
+                    {/* Lower: Group Memberships */}
+                    <Card className="flex-1 min-h-0 flex flex-col">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <UsersIcon className="h-4 w-4 text-primary" />
+                          Group Memberships
+                          <Badge variant="secondary" className="text-[9px]">{selectedUser.groups?.length || 0}</Badge>
+                        </CardTitle>
+                      </CardHeader>
+
+                      <CardContent className="flex-1 overflow-y-auto space-y-2.5 pr-1">
+                        {!selectedUser.groups || selectedUser.groups.length === 0 ? (
+                          <div className="p-8 text-center text-muted-foreground border border-dashed border-border rounded-xl text-sm">
+                            This user is not a member of any groups.
+                          </div>
+                        ) : (
+                          selectedUser.groups.map((g: any) => {
+                            const isExpanded = expandedGroups[g.id] || false;
+                            return (
+                              <div key={g.id} className="bg-background/60 border border-border/50 rounded-xl overflow-hidden">
+                                {/* Accordion trigger */}
+                                <button
+                                  onClick={() => toggleGroupAccordion(g.id)}
+                                  className="w-full flex items-center justify-between p-3 hover:bg-muted/30 text-left transition-colors cursor-pointer"
+                                >
+                                  <div className="overflow-hidden pr-2">
+                                    <span className="text-xs font-bold text-foreground block truncate">{g.name}</span>
+                                    <span className="text-[10px] text-muted-foreground mt-0.5 block truncate">
+                                      {g.policies?.length || 0} Attached {g.policies?.length === 1 ? 'policy' : 'policies'}
+                                    </span>
+                                  </div>
+                                  {isExpanded ? (
+                                    <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+                                  ) : (
+                                    <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                                  )}
+                                </button>
+
+                                {/* Expansion panel */}
+                                <AnimatePresence>
+                                  {isExpanded && (
+                                    <motion.div
+                                      initial={{ height: 0, opacity: 0 }}
+                                      animate={{ height: 'auto', opacity: 1 }}
+                                      exit={{ height: 0, opacity: 0 }}
+                                      transition={{ duration: 0.2 }}
+                                      className="overflow-hidden"
+                                    >
+                                      <div className="p-3 bg-background border-t border-border/40 space-y-2">
+                                        <h5 className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Group Policies</h5>
+                                        {g.policies && g.policies.length > 0 ? (
+                                          <div className="space-y-1.5">
+                                            {g.policies.map((p: any) => (
+                                              <div key={p.id} className="p-2 bg-muted/20 border border-border/40 rounded-lg text-[11px] font-medium text-muted-foreground">
+                                                {p.name}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        ) : (
+                                          <p className="text-[10px] text-muted-foreground/60 italic">No policies attached to group.</p>
+                                        )}
+                                      </div>
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+                              </div>
+                            );
+                          })
+                        )}
+                      </CardContent>
+                    </Card>
                   </div>
 
-                  {/* Lower: Group Memberships */}
-                  <Card className="flex-1 min-h-0 flex flex-col">
+                  {/* RIGHT COLUMN: Calculated Effective Permissions */}
+                  <Card className="flex flex-col min-h-0">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-sm flex items-center gap-2">
-                        <UsersIcon className="h-4 w-4 text-primary" />
-                        Group Memberships
-                        <Badge variant="secondary" className="text-[9px]">{selectedUser.groups?.length || 0}</Badge>
+                        <ShieldCheck className="h-4 w-4 text-emerald-400" />
+                        Effective Permissions Summary
                       </CardTitle>
+                      <div className="flex flex-col gap-1.5 mt-2 bg-muted/10 p-2.5 rounded-xl border border-border/40">
+                        <Label className="text-[10px] font-bold text-muted-foreground uppercase">Evaluate Resource Context</Label>
+                        <div className="flex gap-2">
+                          <select
+                            value={
+                              ['*', ...availableReports.map(r => `reports:${r.id}`), ...availableAlerts.map(a => `alerts:${a.id}`)].includes(summaryResource)
+                                ? summaryResource
+                                : 'custom'
+                            }
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === 'custom') {
+                                setSummaryResource('reports:');
+                              } else {
+                                setSummaryResource(val);
+                                fetchUserDetails(selectedUser.id, val);
+                              }
+                            }}
+                            className="h-8 px-2 bg-background border border-border/60 rounded-lg text-xs flex-1 cursor-pointer font-mono"
+                          >
+                            <option value="*">Global Wildcard (*)</option>
+                            <optgroup label="Reports">
+                              {availableReports.map(r => (
+                                <option key={r.id} value={`reports:${r.id}`}>reports:{r.name} ({r.id.slice(0, 6)}...)</option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="Alerts">
+                              {availableAlerts.map(a => (
+                                <option key={a.id} value={`alerts:${a.id}`}>alerts:{a.title.slice(0, 20)}... ({a.id.slice(0, 6)}...)</option>
+                              ))}
+                            </optgroup>
+                            <option value="custom">Custom target ID...</option>
+                          </select>
+
+                          {!['*', ...availableReports.map(r => `reports:${r.id}`), ...availableAlerts.map(a => `alerts:${a.id}`)].includes(summaryResource) && (
+                            <input
+                              type="text"
+                              value={summaryResource}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setSummaryResource(val);
+                              }}
+                              onBlur={() => {
+                                fetchUserDetails(selectedUser.id, summaryResource);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  fetchUserDetails(selectedUser.id, summaryResource);
+                                }
+                              }}
+                              className="h-8 px-2 bg-background border border-border/60 rounded-lg text-xs w-48 font-mono"
+                              placeholder="e.g. reports:finance-123"
+                            />
+                          )}
+                        </div>
+                      </div>
                     </CardHeader>
 
-                    <CardContent className="flex-1 overflow-y-auto space-y-2.5 pr-1">
-                      {!selectedUser.groups || selectedUser.groups.length === 0 ? (
-                        <div className="p-8 text-center text-muted-foreground border border-dashed border-border rounded-xl text-sm">
-                          This user is not a member of any groups.
-                        </div>
-                      ) : (
-                        selectedUser.groups.map((g: any) => {
-                          const isExpanded = expandedGroups[g.id] || false;
-                          return (
-                            <div key={g.id} className="bg-background/60 border border-border/50 rounded-xl overflow-hidden">
-                              {/* Accordion trigger */}
-                              <button
-                                onClick={() => toggleGroupAccordion(g.id)}
-                                className="w-full flex items-center justify-between p-3 hover:bg-muted/30 text-left transition-colors cursor-pointer"
-                              >
-                                <div className="overflow-hidden pr-2">
-                                  <span className="text-xs font-bold text-foreground block truncate">{g.name}</span>
-                                  <span className="text-[10px] text-muted-foreground mt-0.5 block truncate">
-                                    {g.policies?.length || 0} Attached {g.policies?.length === 1 ? 'policy' : 'policies'}
-                                  </span>
-                                </div>
-                                {isExpanded ? (
-                                  <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
-                                ) : (
-                                  <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-                                )}
-                              </button>
-
-                              {/* Expansion panel */}
-                              <AnimatePresence>
-                                {isExpanded && (
-                                  <motion.div
-                                    initial={{ height: 0, opacity: 0 }}
-                                    animate={{ height: 'auto', opacity: 1 }}
-                                    exit={{ height: 0, opacity: 0 }}
-                                    transition={{ duration: 0.2 }}
-                                    className="overflow-hidden"
-                                  >
-                                    <div className="p-3 bg-background border-t border-border/40 space-y-2">
-                                      <h5 className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Group Policies</h5>
-                                      {g.policies && g.policies.length > 0 ? (
-                                        <div className="space-y-1.5">
-                                          {g.policies.map((p: any) => (
-                                            <div key={p.id} className="p-2 bg-muted/20 border border-border/40 rounded-lg text-[11px] font-medium text-muted-foreground">
-                                              {p.name}
-                                            </div>
-                                          ))}
-                                        </div>
-                                      ) : (
-                                        <p className="text-[10px] text-muted-foreground/60 italic">No policies attached to group.</p>
-                                      )}
-                                    </div>
-                                  </motion.div>
-                                )}
-                              </AnimatePresence>
+                    <CardContent className="flex-1 overflow-y-auto space-y-4 pr-1">
+                      {Object.keys(ACTIONS_BY_NAMESPACE).map(namespace => {
+                        const nsActions = ACTIONS_BY_NAMESPACE[namespace];
+                        return (
+                          <div key={namespace} className="space-y-2">
+                            <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-1">
+                              {namespace} Actions
+                            </h4>
+                            <div className="bg-background/40 border border-border/40 rounded-xl p-2 space-y-1.5">
+                              {nsActions.map(action => {
+                                const isAllowed = selectedUser.effectivePermissions?.[action] === true;
+                                return (
+                                  <div key={action} className="flex items-center justify-between py-1.5 px-2 hover:bg-muted/10 rounded-lg transition-colors">
+                                    <span className="font-mono text-[10px] text-foreground/90 truncate mr-2" title={action}>
+                                      {action.split(':')[1] || action}
+                                    </span>
+                                    <Badge
+                                      variant={isAllowed ? "success" : "destructive"}
+                                      className="text-[8px] font-bold tracking-wider px-1.5 py-0.5 shrink-0"
+                                    >
+                                      {isAllowed ? "ALLOWED" : "DENIED"}
+                                    </Badge>
+                                  </div>
+                                );
+                              })}
                             </div>
-                          );
-                        })
-                      )}
+                          </div>
+                        );
+                      })}
                     </CardContent>
                   </Card>
                 </div>
+              </div>
+            )}
+            {/* CREATE USER MODAL */}
+            <AnimatePresence>
+              {showCreateUserModal && (
+                <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                  <motion.form
+                    onSubmit={handleCreateUserSubmit}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="bg-card border border-border rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative space-y-4 text-foreground"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowCreateUserModal(false);
+                        setCreateUserError('');
+                      }}
+                      className="absolute top-4 right-4 text-muted-foreground hover:text-foreground cursor-pointer"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
 
-                {/* RIGHT COLUMN: Calculated Effective Permissions */}
-                <Card className="flex flex-col min-h-0">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <ShieldCheck className="h-4 w-4 text-emerald-400" />
-                      Effective Permissions Summary
-                    </CardTitle>
-                  </CardHeader>
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-primary/10 text-primary rounded-xl">
+                        <UserPlus className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h2 className="text-sm font-bold font-semibold text-foreground">Register User Account</h2>
+                        <p className="text-[11px] text-muted-foreground">Create a new credentials identity with optional policies and groups.</p>
+                      </div>
+                    </div>
 
-                  <CardContent className="flex-1 overflow-y-auto space-y-4 pr-1">
-                    {Object.keys(ACTIONS_BY_NAMESPACE).map(namespace => {
-                      const nsActions = ACTIONS_BY_NAMESPACE[namespace];
-                      return (
-                        <div key={namespace} className="space-y-2">
-                          <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-1">
-                            {namespace} Actions
-                          </h4>
-                          <div className="bg-background/40 border border-border/40 rounded-xl p-2 space-y-1.5">
-                            {nsActions.map(action => {
-                              const isAllowed = selectedUser.effectivePermissions?.[action] === true;
-                              return (
-                                <div key={action} className="flex items-center justify-between py-1.5 px-2 hover:bg-muted/10 rounded-lg transition-colors">
-                                  <span className="font-mono text-[10px] text-foreground/90 truncate mr-2" title={action}>
-                                    {action.split(':')[1] || action}
-                                  </span>
-                                  <Badge
-                                    variant={isAllowed ? "success" : "destructive"}
-                                    className="text-[8px] font-bold tracking-wider px-1.5 py-0.5 shrink-0"
-                                  >
-                                    {isAllowed ? "ALLOWED" : "DENIED"}
-                                  </Badge>
-                                </div>
-                              );
-                            })}
+                    {createUserError && (
+                      <div className="p-3 bg-destructive/10 border border-destructive/20 text-destructive text-xs rounded-xl flex items-start gap-2">
+                        <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                        <span>{createUserError}</span>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-border/30">
+                      <div className="space-y-3">
+                        <div className="space-y-1">
+                          <Label htmlFor="create-name" className="text-xs">Full Name</Label>
+                          <Input
+                            id="create-name"
+                            type="text"
+                            value={newUserName}
+                            onChange={e => setNewUserName(e.target.value)}
+                            placeholder="John Doe"
+                            required
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label htmlFor="create-email" className="text-xs">Email Address</Label>
+                          <Input
+                            id="create-email"
+                            type="email"
+                            value={newUserEmail}
+                            onChange={e => setNewUserEmail(e.target.value)}
+                            placeholder="john@org.local"
+                            required
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label htmlFor="create-pass" className="text-xs">Password</Label>
+                          <Input
+                            id="create-pass"
+                            type="password"
+                            value={newUserPassword}
+                            onChange={e => setNewUserPassword(e.target.value)}
+                            placeholder="Min 8 chars, 1 digit, 1 special char"
+                            required
+                          />
+                          <p className="text-[9px] text-muted-foreground/80 mt-1">
+                            Password must contain at least 8 characters, one digit, and one special character (e.g. !@#$).
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        {/* Groups Checklist */}
+                        <div className="space-y-1">
+                          <Label className="text-xs font-semibold text-foreground">Attach Groups (Optional)</Label>
+                          <div className="border border-border/60 rounded-xl p-2 max-h-[100px] overflow-y-auto space-y-1 bg-background/40">
+                            {allGroups.length === 0 ? (
+                              <p className="text-[10px] text-muted-foreground italic p-1">No groups available</p>
+                            ) : (
+                              allGroups.map(g => (
+                                <label key={g.id} className="flex items-center gap-2 hover:bg-muted/10 p-1 rounded cursor-pointer text-xs">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedGroupsForNewUser.includes(g.id)}
+                                    onChange={e => {
+                                      if (e.target.checked) {
+                                        setSelectedGroupsForNewUser(prev => [...prev, g.id]);
+                                      } else {
+                                        setSelectedGroupsForNewUser(prev => prev.filter(id => id !== g.id));
+                                      }
+                                    }}
+                                    className="rounded border-border"
+                                  />
+                                  <span className="truncate" title={g.name}>{g.name}</span>
+                                </label>
+                              ))
+                            )}
                           </div>
                         </div>
-                      );
-                    })}
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-          )}
-        </PageWrapper>
+
+                        {/* Policies Checklist */}
+                        <div className="space-y-1">
+                          <Label className="text-xs font-semibold text-foreground">Attach Managed Policies (Optional)</Label>
+                          <div className="border border-border/60 rounded-xl p-2 max-h-[100px] overflow-y-auto space-y-1 bg-background/40">
+                            {allPolicies.length === 0 ? (
+                              <p className="text-[10px] text-muted-foreground italic p-1">No policies available</p>
+                            ) : (
+                              allPolicies.map(p => (
+                                <label key={p.id} className="flex items-center gap-2 hover:bg-muted/10 p-1 rounded cursor-pointer text-xs">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedPoliciesForNewUser.includes(p.id)}
+                                    onChange={e => {
+                                      if (e.target.checked) {
+                                        setSelectedPoliciesForNewUser(prev => [...prev, p.id]);
+                                      } else {
+                                        setSelectedPoliciesForNewUser(prev => prev.filter(id => id !== p.id));
+                                      }
+                                    }}
+                                    className="rounded border-border"
+                                  />
+                                  <span className="truncate" title={p.name}>{p.name}</span>
+                                </label>
+                              ))
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Boundary Selection */}
+                        <div className="space-y-1">
+                          <Label htmlFor="create-boundary" className="text-xs font-semibold text-foreground">Permission Boundary (Optional)</Label>
+                          <select
+                            id="create-boundary"
+                            value={selectedBoundaryForNewUser}
+                            onChange={e => setSelectedBoundaryForNewUser(e.target.value)}
+                            className="h-8 px-2 bg-background border border-border/60 rounded-lg text-xs w-full cursor-pointer"
+                          >
+                            <option value="">No Boundary (None)</option>
+                            {allPolicies.map(p => (
+                              <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-2 text-xs pt-1.5 border-t border-border/30">
+                      <Button type="button" variant="ghost" size="sm" onClick={() => {
+                        setShowCreateUserModal(false);
+                        setCreateUserError('');
+                      }}>
+                        Cancel
+                      </Button>
+                      <Button type="submit" size="sm" disabled={loading}>
+                        {loading ? 'Registering...' : 'Register User'}
+                      </Button>
+                    </div>
+                  </motion.form>
+                </div>
+              )}
+            </AnimatePresence>
+          </PageWrapper>
+        </div>
       </div>
     </div>
   );

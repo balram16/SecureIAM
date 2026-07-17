@@ -18,4 +18,7 @@ router.delete('/:id/policies/:policyId', authMiddleware, iamMiddleware('iam:Deta
 router.put('/:id/boundary', authMiddleware, iamMiddleware('iam:PutUserBoundary'), validate(putBoundarySchema), userController.putBoundary);
 router.delete('/:id/boundary', authMiddleware, iamMiddleware('iam:DeleteUserBoundary'), userController.deleteBoundary);
 
+// User deletion
+router.delete('/:id', authMiddleware, iamMiddleware('iam:DeleteUser'), userController.deleteUser);
+
 export default router;

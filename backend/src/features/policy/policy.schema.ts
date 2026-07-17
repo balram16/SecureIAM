@@ -14,11 +14,8 @@ const statementSchema = z.object({
     message: "Action must be a non-empty array of strings."
   }),
   
-  Resource: z.array(z.string())
-    .length(1, 'Resource must be exactly ["*"].')
-    .refine(val => val[0] === '*', {
-      message: 'Resource must be exactly ["*"].'
-    })
+  Resource: z.array(z.string().min(1, 'Resource cannot be empty.'))
+    .min(1, 'Resource must contain at least one selector.')
 });
 
 export const createPolicySchema = z.object({

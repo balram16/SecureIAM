@@ -2,7 +2,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import prisma from '../../config/db';
 
-export const registerUser = async ({ name, email, password }: any) => {
+export const registerUser = async ({ name, email, password, policyIds, groupIds, boundaryPolicyId }: any) => {
   // Check if email already exists
   const existingUser = await prisma.user.findUnique({
     where: { email }
@@ -18,24 +18,70 @@ export const registerUser = async ({ name, email, password }: any) => {
   const saltRounds = 10;
   const passwordHash = await bcrypt.hash(password, saltRounds);
 
-  // Create user
-  const newUser = await prisma.user.create({
-    data: {
-      name,
-      email,
-      passwordHash,
-      isRoot: false
-    },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      isRoot: true,
-      createdAt: true
+  // Create user and link relationships in a transaction
+  const newUser = await prisma.$transaction(async (tx) => {
+    const user = await tx.user.create({
+      data: {
+        name,
+        email,
+        passwordHash,
+        isRoot: false
+      }
+    });
+
+    // Attach direct policies
+    if (Array.isArray(policyIds) && policyIds.length > 0) {
+      for (const policyId of policyIds) {
+        const policy = await tx.policy.findUnique({ where: { id: policyId } });
+        if (policy) {
+          await tx.userPolicyAttachment.create({
+            data: {
+              userId: user.id,
+              policyId
+            }
+          });
+        }
+      }
     }
+
+    // Join groups
+    if (Array.isArray(groupIds) && groupIds.length > 0) {
+      for (const groupId of groupIds) {
+        const group = await tx.group.findUnique({ where: { id: groupId } });
+        if (group) {
+          await tx.userGroupMembership.create({
+            data: {
+              userId: user.id,
+              groupId
+            }
+          });
+        }
+      }
+    }
+
+    // Set permission boundary
+    if (boundaryPolicyId) {
+      const policy = await tx.policy.findUnique({ where: { id: boundaryPolicyId } });
+      if (policy) {
+        await tx.userBoundary.create({
+          data: {
+            userId: user.id,
+            policyId: boundaryPolicyId
+          }
+        });
+      }
+    }
+
+    return user;
   });
 
-  return newUser;
+  return {
+    id: newUser.id,
+    name: newUser.name,
+    email: newUser.email,
+    isRoot: newUser.isRoot,
+    createdAt: newUser.createdAt
+  };
 };
 
 export const loginUser = async ({ email, password }: any) => {

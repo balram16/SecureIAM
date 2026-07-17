@@ -3,6 +3,7 @@ import { POLICY_TYPES, ALL_ACTIONS } from '../../config/constants';
 import { getEffectivePermissionsSummary } from '../../shared/utils/permission.utils';
 import { validateDelegationBypass } from '../policy/policy.service';
 import { UserWithPolicies } from '../../types';
+import { logAudit } from '../../shared/utils/audit.logger';
 
 export const getAllUsers = async () => {
   const users = await prisma.user.findMany({
@@ -30,7 +31,7 @@ export const getAllUsers = async () => {
   }));
 };
 
-export const getUserProfile = async (id: string) => {
+export const getUserProfile = async (id: string, resourceTarget: string = '*') => {
   const user = await prisma.user.findUnique({
     where: { id },
     include: {
@@ -67,7 +68,7 @@ export const getUserProfile = async (id: string) => {
   }
 
   // Compute effective permissions summary
-  const effectivePermissions = getEffectivePermissionsSummary(user, ALL_ACTIONS);
+  const effectivePermissions = getEffectivePermissionsSummary(user, ALL_ACTIONS, resourceTarget);
 
   return {
     id: user.id,
@@ -125,15 +126,27 @@ export const attachPolicyToUser = async (requestingUser: UserWithPolicies, { use
     throw error;
   }
 
-  return await prisma.userPolicyAttachment.create({
+  const attachment = await prisma.userPolicyAttachment.create({
     data: {
       userId,
       policyId
     }
   });
+
+  await logAudit(
+    requestingUser.id,
+    requestingUser.name || requestingUser.email,
+    'iam:AttachUserPolicy',
+    `Attached policy '${policy.name}' to user '${user.name}'`
+  );
+
+  return attachment;
 };
 
-export const detachPolicyFromUser = async ({ userId, policyId }: any) => {
+export const detachPolicyFromUser = async (requestingUser: UserWithPolicies, { userId, policyId }: any) => {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const policy = await prisma.policy.findUnique({ where: { id: policyId } });
+
   const attachment = await prisma.userPolicyAttachment.findUnique({
     where: {
       userId_policyId: { userId, policyId }
@@ -151,6 +164,13 @@ export const detachPolicyFromUser = async ({ userId, policyId }: any) => {
       userId_policyId: { userId, policyId }
     }
   });
+
+  await logAudit(
+    requestingUser.id,
+    requestingUser.name || requestingUser.email,
+    'iam:DetachUserPolicy',
+    `Detached policy '${policy?.name || policyId}' from user '${user?.name || userId}'`
+  );
 
   return { message: 'Policy detached from user successfully.' };
 };
@@ -184,11 +204,20 @@ export const putUserBoundary = async (requestingUser: UserWithPolicies, { userId
   }
 
   // Upsert boundary policy (replace if existing)
-  return await prisma.userBoundary.upsert({
+  const boundary = await prisma.userBoundary.upsert({
     where: { userId },
     update: { policyId },
     create: { userId, policyId }
   });
+
+  await logAudit(
+    requestingUser.id,
+    requestingUser.name || requestingUser.email,
+    'iam:PutUserBoundary',
+    `Set permission boundary '${policy.name}' for user '${user.name}'`
+  );
+
+  return boundary;
 };
 
 export const deleteUserBoundary = async (requestingUser: UserWithPolicies, { userId }: any) => {
@@ -217,5 +246,43 @@ export const deleteUserBoundary = async (requestingUser: UserWithPolicies, { use
     where: { userId }
   });
 
+  await logAudit(
+    requestingUser.id,
+    requestingUser.name || requestingUser.email,
+    'iam:DeleteUserBoundary',
+    `Removed permission boundary from user '${user.name}'`
+  );
+
   return { message: 'Boundary removed from user successfully.' };
+};
+
+export const deleteUser = async (requestingUser: UserWithPolicies, userId: string) => {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) {
+    const error: any = new Error('User not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (user.isRoot) {
+    const error: any = new Error('Root user cannot be deleted.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  await prisma.$transaction([
+    prisma.userPolicyAttachment.deleteMany({ where: { userId } }),
+    prisma.userBoundary.deleteMany({ where: { userId } }),
+    prisma.userGroupMembership.deleteMany({ where: { userId } }),
+    prisma.user.delete({ where: { id: userId } })
+  ]);
+
+  await logAudit(
+    requestingUser.id,
+    requestingUser.name || requestingUser.email,
+    'iam:DeleteUser',
+    `Deleted user account '${user.name}'`
+  );
+
+  return { message: 'User deleted successfully.' };
 };

@@ -10,7 +10,13 @@ export const registerSchema = z.object({
     .email('Invalid email address format.'),
   
   password: z.string()
-    .min(6, 'Password must be at least 6 characters long.'),
+    .min(8, 'Password must be at least 8 characters long.')
+    .regex(/[0-9]/, 'Password must contain at least one digit (0-9).')
+    .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character (e.g., !@#$%^&*).'),
+
+  policyIds: z.array(z.string()).optional(),
+  groupIds: z.array(z.string()).optional(),
+  boundaryPolicyId: z.string().optional().nullable(),
 });
 
 export const loginSchema = z.object({
