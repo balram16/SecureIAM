@@ -71,7 +71,8 @@ model UserGroupMembership {
 model GroupPolicyAttachment {
   groupId    String
   policyId   String
-  attachedAt DateTime @default(now())
+  attachedAt DateTime  @default(now())
+  expiresAt  DateTime?
 
   group  Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
   policy Policy @relation(fields: [policyId], references: [id], onDelete: Cascade)
@@ -84,7 +85,8 @@ model GroupPolicyAttachment {
 model UserPolicyAttachment {
   userId     String
   policyId   String
-  attachedAt DateTime @default(now())
+  attachedAt DateTime  @default(now())
+  expiresAt  DateTime?
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   policy Policy @relation(fields: [policyId], references: [id], onDelete: Cascade)

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Sidebar from '../components/Sidebar';
 import TopNavbar from '../components/TopNavbar';
 import api from '../services/api';
-import { ChevronLeft, ChevronDown, ChevronUp, AlertCircle, Search, X, Check, Eye, EyeOff, Lock, Plus, ShieldCheck, Shield, Trash2, Key, Users as UsersIcon, ShieldAlert, UserPlus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, AlertCircle, Search, X, Check, Eye, EyeOff, Lock, Plus, ShieldCheck, Shield, Trash2, Key, Users as UsersIcon, ShieldAlert, UserPlus } from 'lucide-react';
 import { User, Policy } from '../types/iam';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -50,8 +50,39 @@ const Users = () => {
   const [policySearchText, setPolicySearchText] = useState('');
   const [boundarySearchText, setBoundarySearchText] = useState('');
   const [summaryResource, setSummaryResource] = useState('*');
+  const [selectedPolicyForDuration, setSelectedPolicyForDuration] = useState<any>(null);
+  const [attachDuration, setAttachDuration] = useState<number>(0);
+  const [customExpiry, setCustomExpiry] = useState<string>('');
+  const [inspectingActionResources, setInspectingActionResources] = useState<{ action: string; resources: string[] } | null>(null);
   const [availableReports, setAvailableReports] = useState<{ id: string; name: string }[]>([]);
   const [availableAlerts, setAvailableAlerts] = useState<{ id: string; title: string }[]>([]);
+
+  // Live timer tick to prune expired Direct Policies and refresh badges in real-time
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTick(t => t + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const getResourceFriendlyName = (resourceStr: string): string => {
+    if (!resourceStr) return '';
+    const parts = resourceStr.split(':');
+    const namespace = parts[0];
+    const id = parts[1];
+    if (!id) return resourceStr;
+
+    if (namespace === 'reports') {
+      const report = availableReports.find(r => r.id === id);
+      return report ? report.name : resourceStr;
+    }
+    if (namespace === 'alerts') {
+      const alert = availableAlerts.find(a => a.id === id);
+      return alert ? alert.title : resourceStr;
+    }
+    return resourceStr;
+  };
 
   // Create user states
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
@@ -170,10 +201,25 @@ const Users = () => {
     }
   };
 
-  const handleAttachPolicy = async (policyId: string) => {
+  const handleAttachPolicy = async (policyId: string, duration?: number, expiresAt?: string) => {
     setError('');
     try {
-      await api.post(`/iam/users/${selectedUser.id}/policies`, { policyId });
+      let finalExpiresAt = undefined;
+      if (duration === -1 && expiresAt) {
+        const [datePart, timePart] = expiresAt.split('T');
+        if (datePart && timePart) {
+          const [year, month, day] = datePart.split('-').map(Number);
+          const [hours, minutes] = timePart.split(':').map(Number);
+          const date = new Date(year, month - 1, day, hours, minutes);
+          finalExpiresAt = date.toISOString();
+        }
+      }
+
+      await api.post(`/iam/users/${selectedUser.id}/policies`, { 
+        policyId,
+        duration: duration && duration > 0 ? duration : undefined,
+        expiresAt: finalExpiresAt
+      });
       setShowAttachPolicyDropdown(false);
       setPolicySearchText('');
       fetchUserDetails(selectedUser.id, summaryResource);
@@ -592,29 +638,101 @@ const Users = () => {
                                     initial={{ opacity: 0, y: -4 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -4 }}
-                                    className="absolute right-0 mt-2 p-3 bg-card border border-border rounded-xl shadow-2xl z-20 w-72 flex flex-col max-h-[200px]"
+                                    className="absolute right-0 mt-2 p-3 bg-card border border-border rounded-xl shadow-2xl z-20 w-72 flex flex-col min-h-[160px] max-h-[280px]"
                                   >
-                                    <Input
-                                      value={policySearchText}
-                                      onChange={(e) => setPolicySearchText(e.target.value)}
-                                      placeholder="Search managed policies..."
-                                      className="mb-2 h-8 text-xs"
-                                    />
-                                    <div className="flex-1 overflow-y-auto space-y-0.5">
-                                      {attachablePolicies.length === 0 ? (
-                                        <p className="text-xs text-muted-foreground italic p-2 text-center">No attachable policies.</p>
-                                      ) : (
-                                        attachablePolicies.map(p => (
-                                          <button
-                                            key={p.id}
-                                            onClick={() => handleAttachPolicy(p.id)}
-                                            className="w-full text-left px-2 py-1.5 hover:bg-muted/50 rounded-lg text-xs text-foreground/80 hover:text-foreground transition-colors"
+                                    {selectedPolicyForDuration ? (
+                                      <div className="flex flex-col h-full justify-between">
+                                        <div className="space-y-2">
+                                          <div>
+                                            <h4 className="text-xs font-semibold text-foreground mb-1">Temporary Access</h4>
+                                            <p className="text-[10px] text-muted-foreground mb-2 leading-relaxed">
+                                              Select validity duration for <strong className="text-foreground">{selectedPolicyForDuration.name}</strong>.
+                                            </p>
+                                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Duration</Label>
+                                            <select
+                                              value={attachDuration}
+                                              onChange={(e) => {
+                                                const val = Number(e.target.value);
+                                                setAttachDuration(val);
+                                                if (val === -1) {
+                                                  // Set default custom expiry to 1 hour from now, adjusted to local timezone format
+                                                  const defaultCustom = new Date(Date.now() + 60 * 60 * 1000 - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+                                                  setCustomExpiry(defaultCustom);
+                                                }
+                                              }}
+                                              className="w-full mt-1 px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+                                            >
+                                              <option value={0}>Permanent (No Expiration)</option>
+                                              <option value={15}>15 Minutes</option>
+                                              <option value={60}>1 Hour</option>
+                                              <option value={120}>2 Hours</option>
+                                              <option value={1440}>1 Day (24 Hours)</option>
+                                              <option value={-1}>Custom Date & Time</option>
+                                            </select>
+                                          </div>
+                                          {attachDuration === -1 && (
+                                            <div className="space-y-1">
+                                              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Select Expiry (Local Time)</Label>
+                                              <input
+                                                type="datetime-local"
+                                                min={new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)}
+                                                value={customExpiry}
+                                                onChange={(e) => setCustomExpiry(e.target.value)}
+                                                className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer font-sans"
+                                                required
+                                              />
+                                            </div>
+                                          )}
+                                        </div>
+                                        <div className="flex justify-end gap-2 mt-4 pt-2 border-t border-border/20">
+                                          <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-7 text-[11px] font-medium"
+                                            onClick={() => setSelectedPolicyForDuration(null)}
                                           >
-                                            {p.name}
-                                          </button>
-                                        ))
-                                      )}
-                                    </div>
+                                            Back
+                                          </Button>
+                                          <Button
+                                            size="sm"
+                                            className="h-7 text-[11px] font-medium"
+                                            onClick={() => {
+                                              handleAttachPolicy(selectedPolicyForDuration.id, attachDuration, customExpiry);
+                                              setSelectedPolicyForDuration(null);
+                                            }}
+                                          >
+                                            Confirm
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <>
+                                        <Input
+                                          value={policySearchText}
+                                          onChange={(e) => setPolicySearchText(e.target.value)}
+                                          placeholder="Search managed policies..."
+                                          className="mb-2 h-8 text-xs"
+                                        />
+                                        <div className="flex-1 overflow-y-auto space-y-0.5 max-h-[160px]">
+                                          {attachablePolicies.length === 0 ? (
+                                            <p className="text-xs text-muted-foreground italic p-2 text-center">No attachable policies.</p>
+                                          ) : (
+                                            attachablePolicies.map(p => (
+                                              <button
+                                                key={p.id}
+                                                onClick={() => {
+                                                  setAttachDuration(0);
+                                                  setSelectedPolicyForDuration(p);
+                                                }}
+                                                className="w-full text-left px-2 py-1.5 hover:bg-muted/50 rounded-lg text-xs text-foreground/80 hover:text-foreground transition-colors cursor-pointer"
+                                              >
+                                                {p.name}
+                                              </button>
+                                            ))
+                                          )}
+                                        </div>
+                                      </>
+                                    )}
                                   </motion.div>
                                 )}
                               </AnimatePresence>
@@ -623,24 +741,47 @@ const Users = () => {
                         </CardHeader>
 
                         <CardContent className="flex-1 overflow-y-auto max-h-[160px] space-y-2 pr-1">
-                          {!selectedUser.directPolicies || selectedUser.directPolicies.length === 0 ? (
-                            <p className="text-xs text-muted-foreground italic p-2">No direct policy attachments.</p>
-                          ) : (
-                            selectedUser.directPolicies.map((p: any) => (
+                          {(() => {
+                            const activeDirectPolicies = (selectedUser.directPolicies || []).filter((p: any) => {
+                              if (!p.expiresAt) return true;
+                              return new Date(p.expiresAt).getTime() > Date.now();
+                            });
+
+                            if (activeDirectPolicies.length === 0) {
+                              return <p className="text-xs text-muted-foreground italic p-2">No direct policy attachments.</p>;
+                            }
+
+                            return activeDirectPolicies.map((p: any) => (
                               <div key={p.id} className="flex items-center justify-between p-2.5 bg-background/60 border border-border/50 rounded-lg text-xs">
-                                <span className="font-medium text-foreground/80">{p.name}</span>
+                                <div className="flex flex-col gap-1 w-full mr-2">
+                                  <div className="flex items-center justify-between w-full">
+                                    <span className="font-medium text-foreground/80">{p.name}</span>
+                                    {p.expiresAt && (
+                                      <span className="text-[9px] font-bold text-amber-500 font-mono flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 shrink-0">
+                                        <span className="h-1 w-1 rounded-full bg-amber-500 animate-pulse" />
+                                        Expires: {new Date(p.expiresAt).toLocaleString(undefined, {
+                                          month: 'short',
+                                          day: 'numeric',
+                                          hour: '2-digit',
+                                          minute: '2-digit',
+                                          second: '2-digit'
+                                        })}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
                                 <Button
                                   variant="ghost"
                                   size="icon"
                                   onClick={() => handleDetachPolicy(p.id)}
-                                  className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                  className="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0"
                                   title="Detach policy"
                                 >
                                   <Trash2 className="h-3 w-3" />
                                 </Button>
                               </div>
-                            ))
-                          )}
+                            ));
+                          })()}
                         </CardContent>
                       </Card>
 
@@ -819,62 +960,6 @@ const Users = () => {
                         <ShieldCheck className="h-4 w-4 text-emerald-400" />
                         Effective Permissions Summary
                       </CardTitle>
-                      <div className="flex flex-col gap-1.5 mt-2 bg-muted/10 p-2.5 rounded-xl border border-border/40">
-                        <Label className="text-[10px] font-bold text-muted-foreground uppercase">Evaluate Resource Context</Label>
-                        <div className="flex gap-2">
-                          <select
-                            value={
-                              ['*', ...availableReports.map(r => `reports:${r.id}`), ...availableAlerts.map(a => `alerts:${a.id}`)].includes(summaryResource)
-                                ? summaryResource
-                                : 'custom'
-                            }
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (val === 'custom') {
-                                setSummaryResource('reports:');
-                              } else {
-                                setSummaryResource(val);
-                                fetchUserDetails(selectedUser.id, val);
-                              }
-                            }}
-                            className="h-8 px-2 bg-background border border-border/60 rounded-lg text-xs flex-1 cursor-pointer font-mono"
-                          >
-                            <option value="*">Global Wildcard (*)</option>
-                            <optgroup label="Reports">
-                              {availableReports.map(r => (
-                                <option key={r.id} value={`reports:${r.id}`}>reports:{r.name} ({r.id.slice(0, 6)}...)</option>
-                              ))}
-                            </optgroup>
-                            <optgroup label="Alerts">
-                              {availableAlerts.map(a => (
-                                <option key={a.id} value={`alerts:${a.id}`}>alerts:{a.title.slice(0, 20)}... ({a.id.slice(0, 6)}...)</option>
-                              ))}
-                            </optgroup>
-                            <option value="custom">Custom target ID...</option>
-                          </select>
-
-                          {!['*', ...availableReports.map(r => `reports:${r.id}`), ...availableAlerts.map(a => `alerts:${a.id}`)].includes(summaryResource) && (
-                            <input
-                              type="text"
-                              value={summaryResource}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setSummaryResource(val);
-                              }}
-                              onBlur={() => {
-                                fetchUserDetails(selectedUser.id, summaryResource);
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  fetchUserDetails(selectedUser.id, summaryResource);
-                                }
-                              }}
-                              className="h-8 px-2 bg-background border border-border/60 rounded-lg text-xs w-48 font-mono"
-                              placeholder="e.g. reports:finance-123"
-                            />
-                          )}
-                        </div>
-                      </div>
                     </CardHeader>
 
                     <CardContent className="flex-1 overflow-y-auto space-y-4 pr-1">
@@ -887,18 +972,41 @@ const Users = () => {
                             </h4>
                             <div className="bg-background/40 border border-border/40 rounded-xl p-2 space-y-1.5">
                               {nsActions.map(action => {
-                                const isAllowed = selectedUser.effectivePermissions?.[action] === true;
+                                const permDetail = selectedUser.effectivePermissions?.[action] as any || { status: 'DENIED' };
+                                const status = permDetail.status;
+                                const resources = permDetail.resources || [];
+
                                 return (
                                   <div key={action} className="flex items-center justify-between py-1.5 px-2 hover:bg-muted/10 rounded-lg transition-colors">
                                     <span className="font-mono text-[10px] text-foreground/90 truncate mr-2" title={action}>
                                       {action.split(':')[1] || action}
                                     </span>
-                                    <Badge
-                                      variant={isAllowed ? "success" : "destructive"}
-                                      className="text-[8px] font-bold tracking-wider px-1.5 py-0.5 shrink-0"
-                                    >
-                                      {isAllowed ? "ALLOWED" : "DENIED"}
-                                    </Badge>
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                      {status === 'ALLOWED' && (
+                                        <Badge variant="success" className="text-[8px] font-bold tracking-wider px-1.5 py-0.5">
+                                          ALLOWED
+                                        </Badge>
+                                      )}
+                                      {status === 'LIMITED' && (
+                                        <div className="flex items-center gap-1">
+                                          <Badge variant="warning" className="text-[8px] font-bold tracking-wider px-1.5 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                            SPECIFIC
+                                          </Badge>
+                                          <button
+                                            onClick={() => setInspectingActionResources({ action, resources })}
+                                            className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                                            title="View Allowed Resources"
+                                          >
+                                            <ChevronRight className="h-3 w-3" />
+                                          </button>
+                                        </div>
+                                      )}
+                                      {status === 'DENIED' && (
+                                        <Badge variant="destructive" className="text-[8px] font-bold tracking-wider px-1.5 py-0.5">
+                                          DENIED
+                                        </Badge>
+                                      )}
+                                    </div>
                                   </div>
                                 );
                               })}
@@ -911,6 +1019,9 @@ const Users = () => {
                 </div>
               </div>
             )}
+            
+
+
             {/* CREATE USER MODAL */}
             <AnimatePresence>
               {showCreateUserModal && (
@@ -1136,6 +1247,70 @@ const Users = () => {
                       </Button>
                     </div>
                   </motion.form>
+                </div>
+              )}
+            </AnimatePresence>
+
+            {/* ACTION RESOURCES SLIDE-OVER SIDEBAR */}
+            <AnimatePresence>
+              {inspectingActionResources && (
+                <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex justify-end">
+                  <div className="absolute inset-0" onClick={() => setInspectingActionResources(null)} />
+                  <motion.div
+                    initial={{ x: '100%' }}
+                    animate={{ x: 0 }}
+                    exit={{ x: '100%' }}
+                    transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                    className="relative bg-card border-l border-border w-96 h-full p-6 shadow-2xl z-10 flex flex-col justify-between"
+                  >
+                    <div>
+                      <button
+                        onClick={() => setInspectingActionResources(null)}
+                        className="absolute top-4 right-4 text-muted-foreground hover:text-foreground cursor-pointer"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
+                      <div className="flex items-center gap-2.5 mb-6">
+                        <div className="p-2 bg-amber-500/10 text-amber-400 rounded-xl border border-amber-500/20">
+                          <Key className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-foreground">Specific Allowed Resources</h3>
+                          <p className="text-[11px] font-mono text-muted-foreground mt-0.5">{inspectingActionResources.action}</p>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
+                        This user has explicit permissions to perform this action ONLY on the following resource targets:
+                      </p>
+                      <div className="space-y-3.5 overflow-y-auto max-h-[70vh] pr-1">
+                        {inspectingActionResources.resources.map((res: string, idx: number) => {
+                          const friendlyName = getResourceFriendlyName(res);
+                          const isSame = friendlyName === res;
+                          return (
+                            <div key={idx} className="p-3 bg-background border border-border/60 rounded-xl text-xs flex flex-col gap-1.5 shadow-sm">
+                              <div className="flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                                <span className="font-semibold text-foreground/90">
+                                  {isSame ? 'Target Resource' : friendlyName}
+                                </span>
+                              </div>
+                              <span className="font-mono text-[9px] text-muted-foreground break-all pl-3.5">
+                                {res}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div className="pt-4 border-t border-border/25">
+                      <Button
+                        className="w-full text-xs"
+                        onClick={() => setInspectingActionResources(null)}
+                      >
+                        Close Summary
+                      </Button>
+                    </div>
+                  </motion.div>
                 </div>
               )}
             </AnimatePresence>

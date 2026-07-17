@@ -28,15 +28,22 @@ export const getUser = async (req: Request, res: Response) => {
 export const attachPolicy = async (req: Request, res: Response) => {
   try {
     const { id } = req.params as { id: string }; // User ID
-    const { policyId } = req.body;
+    const { policyId, duration, expiresAt: bodyExpiresAt } = req.body; // duration or explicit expiresAt
 
     if (!req.user) {
       return errorResponse(res, 401, 'Unauthorized');
     }
 
+    const expiresAt = bodyExpiresAt 
+      ? new Date(bodyExpiresAt).toISOString()
+      : duration 
+        ? new Date(Date.now() + duration * 60 * 1000).toISOString() 
+        : null;
+
     const attachment = await userService.attachPolicyToUser(req.user, {
       userId: id,
-      policyId
+      policyId,
+      expiresAt
     });
 
     return successResponse(res, 200, attachment);

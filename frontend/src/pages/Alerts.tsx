@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { PageWrapper } from '@/components/ui/motion';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 interface Alert {
   id: string;
@@ -199,67 +200,115 @@ const Alerts = () => {
                     No active incidents recorded. System is normal.
                   </div>
                 ) : (
-                  alerts.map(item => (
-                    <Card key={item.id} className={`border ${item.acknowledged
-                        ? 'border-border bg-card/45'
-                        : item.severity === 'CRITICAL'
-                          ? 'border-rose-500/25 bg-rose-500/5'
-                          : 'border-amber-500/25 bg-amber-500/5'
-                      }`}>
-                      <CardHeader className="pb-2">
-                        <div className="flex items-center justify-between">
-                          <Badge variant={
-                            item.severity === 'CRITICAL'
-                              ? 'destructive'
-                              : item.severity === 'HIGH'
-                                ? 'warning'
-                                : 'secondary'
-                          }>
-                            {item.severity}
-                          </Badge>
-                          {item.acknowledged && (
-                            <Badge variant="success" className="gap-1 text-[9px] font-semibold py-px">
-                              <Check className="h-3 w-3" />
-                              ACKED
-                            </Badge>
-                          )}
-                        </div>
-                        <CardTitle className="text-sm font-semibold mt-2 leading-relaxed text-foreground">
-                          {item.title}
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="flex justify-end gap-2 pt-2 border-t border-border/30 mt-2 text-xs">
-                        <Button
-                          size="xs"
-                          variant="ghost"
-                          onClick={() => handleReadAlert(item.id)}
-                          className="h-7 text-[11px] gap-1 text-muted-foreground hover:text-foreground hover:bg-muted"
-                          title="View Spec (alerts:Read)"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                          View
-                        </Button>
-                        {!item.acknowledged && (
-                          <Button
-                            size="xs"
-                            variant="outline"
-                            onClick={() => handleAcknowledgeAlert(item.id)}
-                            className="h-7 text-[11px] gap-1"
-                          >
-                            Acknowledge
-                          </Button>
+                  alerts.map(item => {
+                    const cardThemeClass = item.acknowledged
+                      ? 'border-border/40 bg-card/25 hover:bg-card/35 opacity-75 hover:opacity-100 shadow-md'
+                      : item.severity === 'CRITICAL'
+                        ? 'border-rose-500/25 bg-rose-500/[0.02] hover:bg-rose-500/[0.04] shadow-[0_0_15px_-3px_rgba(244,63,94,0.06)] hover:border-rose-500/40'
+                        : item.severity === 'HIGH'
+                          ? 'border-amber-500/25 bg-amber-500/[0.02] hover:bg-amber-500/[0.04] shadow-[0_0_15px_-3px_rgba(245,158,11,0.06)] hover:border-amber-500/40'
+                          : item.severity === 'WARNING'
+                            ? 'border-yellow-500/25 bg-yellow-500/[0.02] hover:bg-yellow-500/[0.04] shadow-[0_0_15px_-3px_rgba(234,179,8,0.06)] hover:border-yellow-500/40'
+                            : 'border-blue-500/25 bg-blue-500/[0.02] hover:bg-blue-500/[0.04] shadow-[0_0_15px_-3px_rgba(59,130,246,0.06)] hover:border-blue-500/40';
+
+                    return (
+                      <Card
+                        key={item.id}
+                        className={cn(
+                          "transition-all duration-300 hover:-translate-y-1 flex flex-col justify-between overflow-hidden",
+                          cardThemeClass
                         )}
-                        <Button
-                          size="xs"
-                          variant="destructive"
-                          onClick={() => handleDeleteAlert(item.id)}
-                          className="h-7 text-[11px]"
-                        >
-                          Resolve
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  ))
+                      >
+                        <CardHeader className="p-5 pb-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <Badge
+                                variant={
+                                  item.severity === 'CRITICAL'
+                                    ? 'destructive'
+                                    : item.severity === 'HIGH'
+                                      ? 'warning'
+                                      : item.severity === 'WARNING'
+                                        ? 'warning'
+                                        : 'info'
+                                }
+                                className="text-[9px] font-bold px-2 py-0.5 tracking-wider"
+                              >
+                                {item.severity}
+                              </Badge>
+                              {item.acknowledged && (
+                                <Badge
+                                  variant="success"
+                                  className="gap-0.5 text-[9px] font-semibold py-0.5 px-1.5 normal-case"
+                                >
+                                  <Check className="h-2.5 w-2.5" />
+                                  Acked
+                                </Badge>
+                              )}
+                            </div>
+
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleReadAlert(item.id)}
+                              className="h-7 w-7 p-0 rounded-full border border-border/40 bg-background/30 text-muted-foreground hover:text-foreground hover:bg-accent/80 hover:border-border/80 transition-all flex items-center justify-center cursor-pointer"
+                              title="View Details"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+
+                          <CardTitle className="text-sm font-semibold mt-3.5 leading-relaxed text-foreground tracking-tight line-clamp-2 min-h-[40px]">
+                            {item.title}
+                          </CardTitle>
+
+                          <div className="text-[10px] text-muted-foreground mt-2 font-mono flex items-center gap-1">
+                            <span className="opacity-60">Ingested:</span>
+                            <span>
+                              {new Date(item.createdAt).toLocaleString(undefined, {
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                          </div>
+                        </CardHeader>
+
+                        <CardContent className="p-5 pt-0">
+                          <div className="flex gap-2 w-full pt-4 border-t border-border/20 mt-2">
+                            {item.acknowledged ? (
+                              <Button
+                                size="sm"
+                                disabled
+                                className="flex-1 h-8 text-[11px] font-semibold tracking-wide bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 opacity-80 cursor-not-allowed gap-1"
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                                Acknowledged
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleAcknowledgeAlert(item.id)}
+                                className="flex-1 h-8 text-[11px] font-medium tracking-wide hover:bg-primary/5 hover:border-primary/30 hover:text-primary transition-all border-border/40"
+                              >
+                                Acknowledge
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleDeleteAlert(item.id)}
+                              className="flex-1 h-8 text-[11px] font-medium tracking-wide bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/20 hover:border-rose-500 transition-all shadow-none hover:shadow-lg hover:shadow-rose-500/25"
+                            >
+                              Resolve
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })
                 )}
               </div>
             </div>

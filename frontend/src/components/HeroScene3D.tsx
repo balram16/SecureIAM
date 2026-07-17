@@ -157,11 +157,9 @@ const ConnectionLines = () => {
     <group ref={ref}>
       {lines.map((pair, i) => {
         const geo = new THREE.BufferGeometry().setFromPoints(pair);
-        return (
-          <line key={i} geometry={geo}>
-            <lineBasicMaterial color="#3b82f6" transparent opacity={0.08} />
-          </line>
-        );
+        const material = new THREE.LineBasicMaterial({ color: '#3b82f6', transparent: true, opacity: 0.08 });
+        const lineObj = new THREE.Line(geo, material);
+        return <primitive key={i} object={lineObj} />;
       })}
     </group>
   );

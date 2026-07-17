@@ -73,6 +73,12 @@ export const getGroupById = async (id: string) => {
         }
       },
       policies: {
+        where: {
+          OR: [
+            { expiresAt: null },
+            { expiresAt: { gt: new Date() } }
+          ]
+        },
         include: {
           policy: {
             select: {
@@ -100,7 +106,12 @@ export const getGroupById = async (id: string) => {
     createdAt: group.createdAt,
     updatedAt: group.updatedAt,
     members: group.memberships.map(m => m.user),
-    policies: group.policies.map(p => p.policy)
+    policies: group.policies
+      .filter(p => !(p as any).expiresAt || new Date((p as any).expiresAt) > new Date())
+      .map(p => ({
+        ...(p.policy as any),
+        expiresAt: (p as any).expiresAt
+      }))
   };
 };
 
@@ -276,7 +287,7 @@ export const removeUserFromGroup = async (requestingUser: UserWithPolicies, { gr
   return { message: 'User removed from group successfully.' };
 };
 
-export const attachPolicyToGroup = async (requestingUser: UserWithPolicies, { groupId, policyId }: any) => {
+export const attachPolicyToGroup = async (requestingUser: UserWithPolicies, { groupId, policyId, expiresAt }: any) => {
   const group = await prisma.group.findUnique({ where: { id: groupId } });
   if (!group) {
     const error: any = new Error('Group not found.');
@@ -309,15 +320,24 @@ export const attachPolicyToGroup = async (requestingUser: UserWithPolicies, { gr
   });
 
   if (existingAttachment) {
-    const error: any = new Error('Policy is already attached to this group.');
-    error.statusCode = 409;
-    throw error;
+    if (existingAttachment.expiresAt && new Date(existingAttachment.expiresAt) <= new Date()) {
+      await prisma.groupPolicyAttachment.delete({
+        where: {
+          groupId_policyId: { groupId, policyId }
+        }
+      });
+    } else {
+      const error: any = new Error('Policy is already attached to this group.');
+      error.statusCode = 409;
+      throw error;
+    }
   }
 
   const attachment = await prisma.groupPolicyAttachment.create({
     data: {
       groupId,
-      policyId
+      policyId,
+      expiresAt: expiresAt ? new Date(expiresAt) : null
     }
   });
 

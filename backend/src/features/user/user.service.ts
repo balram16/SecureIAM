@@ -11,7 +11,14 @@ export const getAllUsers = async () => {
       _count: {
         select: {
           memberships: true,
-          policies: true
+          policies: {
+            where: {
+              OR: [
+                { expiresAt: null },
+                { expiresAt: { gt: new Date() } }
+              ]
+            }
+          }
         }
       },
       boundary: true
@@ -36,6 +43,12 @@ export const getUserProfile = async (id: string, resourceTarget: string = '*') =
     where: { id },
     include: {
       policies: {
+        where: {
+          OR: [
+            { expiresAt: null },
+            { expiresAt: { gt: new Date() } }
+          ]
+        },
         include: {
           policy: true
         }
@@ -45,6 +58,12 @@ export const getUserProfile = async (id: string, resourceTarget: string = '*') =
           group: {
             include: {
               policies: {
+                where: {
+                  OR: [
+                    { expiresAt: null },
+                    { expiresAt: { gt: new Date() } }
+                  ]
+                },
                 include: {
                   policy: true
                 }
@@ -68,7 +87,7 @@ export const getUserProfile = async (id: string, resourceTarget: string = '*') =
   }
 
   // Compute effective permissions summary
-  const effectivePermissions = getEffectivePermissionsSummary(user, ALL_ACTIONS, resourceTarget);
+  const effectivePermissions = getEffectivePermissionsSummary(user, ALL_ACTIONS);
 
   return {
     id: user.id,
@@ -76,19 +95,29 @@ export const getUserProfile = async (id: string, resourceTarget: string = '*') =
     email: user.email,
     isRoot: user.isRoot,
     createdAt: user.createdAt,
-    directPolicies: user.policies.map(p => p.policy),
+    directPolicies: user.policies
+      .filter(p => !(p as any).expiresAt || new Date((p as any).expiresAt) > new Date())
+      .map(p => ({
+        ...(p.policy as any),
+        expiresAt: (p as any).expiresAt
+      })),
     groups: user.memberships.map(m => ({
       id: m.group.id,
       name: m.group.name,
       description: m.group.description,
-      policies: m.group.policies.map(gp => gp.policy)
+      policies: m.group.policies
+        .filter(gp => !(gp as any).expiresAt || new Date((gp as any).expiresAt) > new Date())
+        .map(gp => ({
+          ...(gp.policy as any),
+          expiresAt: (gp as any).expiresAt
+        }))
     })),
     boundary: user.boundary ? user.boundary.policy : null,
     effectivePermissions
   };
 };
 
-export const attachPolicyToUser = async (requestingUser: UserWithPolicies, { userId, policyId }: any) => {
+export const attachPolicyToUser = async (requestingUser: UserWithPolicies, { userId, policyId, expiresAt }: any) => {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) {
     const error: any = new Error('User not found.');
@@ -121,15 +150,25 @@ export const attachPolicyToUser = async (requestingUser: UserWithPolicies, { use
   });
 
   if (existingAttachment) {
-    const error: any = new Error('Policy is already attached to this user.');
-    error.statusCode = 409;
-    throw error;
+    // If it exists but is expired, we can delete it first and allow re-attaching
+    if (existingAttachment.expiresAt && new Date(existingAttachment.expiresAt) <= new Date()) {
+      await prisma.userPolicyAttachment.delete({
+        where: {
+          userId_policyId: { userId, policyId }
+        }
+      });
+    } else {
+      const error: any = new Error('Policy is already attached to this user.');
+      error.statusCode = 409;
+      throw error;
+    }
   }
 
   const attachment = await prisma.userPolicyAttachment.create({
     data: {
       userId,
-      policyId
+      policyId,
+      expiresAt: expiresAt ? new Date(expiresAt) : null
     }
   });
 

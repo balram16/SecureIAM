@@ -32,7 +32,7 @@ const ScrollReveal = ({
   children, className = '', variants = fadeUp, custom = 0,
 }: {
   children: React.ReactNode; className?: string;
-  variants?: typeof fadeUp; custom?: number;
+  variants?: any; custom?: number;
 }) => {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: '-60px' });

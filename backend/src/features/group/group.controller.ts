@@ -127,15 +127,22 @@ export const removeUser = async (req: Request, res: Response) => {
 export const attachPolicy = async (req: Request, res: Response) => {
   try {
     const { id } = req.params as { id: string };
-    const { policyId } = req.body;
+    const { policyId, duration, expiresAt: bodyExpiresAt } = req.body;
 
     if (!req.user) {
       return errorResponse(res, 401, 'Unauthorized');
     }
 
+    const expiresAt = bodyExpiresAt 
+      ? new Date(bodyExpiresAt).toISOString()
+      : duration 
+        ? new Date(Date.now() + duration * 60 * 1000).toISOString() 
+        : null;
+
     const attachment = await groupService.attachPolicyToGroup(req.user, {
       groupId: id,
-      policyId
+      policyId,
+      expiresAt
     });
 
     return successResponse(res, 200, attachment);

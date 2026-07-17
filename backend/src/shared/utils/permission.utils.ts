@@ -61,6 +61,9 @@ export const evaluatePermission = (
   // Collect direct identity policies statements
   if (user.policies && Array.isArray(user.policies)) {
     for (const attachment of user.policies) {
+      if ((attachment as any).expiresAt && new Date((attachment as any).expiresAt) <= new Date()) {
+        continue;
+      }
       if (attachment.policy && attachment.policy.statements) {
         const statementsObj = attachment.policy.statements as any;
         if (statementsObj && Array.isArray(statementsObj.statements)) {
@@ -75,6 +78,9 @@ export const evaluatePermission = (
     for (const membership of user.memberships) {
       if (membership.group && membership.group.policies) {
         for (const attachment of membership.group.policies) {
+          if ((attachment as any).expiresAt && new Date((attachment as any).expiresAt) <= new Date()) {
+            continue;
+          }
           if (attachment.policy && attachment.policy.statements) {
             const statementsObj = attachment.policy.statements as any;
             if (statementsObj && Array.isArray(statementsObj.statements)) {
@@ -129,18 +135,103 @@ export const evaluatePermission = (
   return boundaryAllows;
 };
 
+export interface PermissionDetail {
+  status: 'ALLOWED' | 'DENIED' | 'LIMITED';
+  resources?: string[];
+}
+
 /**
  * Helper to compute the status of all available actions for a user.
  * Useful for building the Effective Permissions Summary.
- *
- * @param user - User object fetched with memberships and policies relations
- * @param allActions - List of all possible actions
- * @returns - Object mapping each action to true (Allowed) or false (Denied)
  */
-export const getEffectivePermissionsSummary = (user: UserWithPolicies, allActions: string[], targetResource: string = '*'): Record<string, boolean> => {
-  const summary: Record<string, boolean> = {};
-  for (const action of allActions) {
-    summary[action] = evaluatePermission(user, action, targetResource);
+export const getEffectivePermissionsSummary = (
+  user: UserWithPolicies,
+  allActions: string[]
+): Record<string, PermissionDetail> => {
+  const summary: Record<string, PermissionDetail> = {};
+
+  if (user.isRoot) {
+    for (const action of allActions) {
+      summary[action] = { status: 'ALLOWED' };
+    }
+    return summary;
   }
+
+  // 1. Gather all active statements (ignoring expired ones)
+  const effectiveStatements: Statement[] = [];
+
+  if (user.policies && Array.isArray(user.policies)) {
+    for (const attachment of user.policies) {
+      if ((attachment as any).expiresAt && new Date((attachment as any).expiresAt) <= new Date()) {
+        continue;
+      }
+      if (attachment.policy && attachment.policy.statements) {
+        const statementsObj = attachment.policy.statements as any;
+        if (statementsObj && Array.isArray(statementsObj.statements)) {
+          effectiveStatements.push(...statementsObj.statements);
+        }
+      }
+    }
+  }
+
+  if (user.memberships && Array.isArray(user.memberships)) {
+    for (const membership of user.memberships) {
+      if (membership.group && membership.group.policies) {
+        for (const attachment of membership.group.policies) {
+          if ((attachment as any).expiresAt && new Date((attachment as any).expiresAt) <= new Date()) {
+            continue;
+          }
+          if (attachment.policy && attachment.policy.statements) {
+            const statementsObj = attachment.policy.statements as any;
+            if (statementsObj && Array.isArray(statementsObj.statements)) {
+              effectiveStatements.push(...statementsObj.statements);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  for (const action of allActions) {
+    const namespace = action.split(':')[0];
+
+    // Check if allowed globally (on '*')
+    const isGloballyAllowed = evaluatePermission(user, action, '*');
+
+    if (isGloballyAllowed) {
+      summary[action] = { status: 'ALLOWED' };
+      continue;
+    }
+
+    // If not globally allowed, let's see if there are any Allows matching this action on specific resources
+    const matchingAllows = effectiveStatements.filter(stmt => {
+      return stmt.Effect === 'Allow' && 
+             stmt.Action && 
+             stmt.Action.includes(action);
+    });
+
+    if (matchingAllows.length > 0) {
+      // Collect the resources listed in these Allows
+      const specificResources = Array.from(
+        new Set(matchingAllows.flatMap(stmt => stmt.Resource || []))
+      ).filter(r => r !== '*'); // exclude '*'
+
+      if (specificResources.length > 0) {
+        // Also check if any of these specific resources are denied
+        const allowedResources = specificResources.filter(res => {
+          return evaluatePermission(user, action, res);
+        });
+
+        if (allowedResources.length > 0) {
+          summary[action] = { status: 'LIMITED', resources: allowedResources };
+          continue;
+        }
+      }
+    }
+
+    // Default to DENIED
+    summary[action] = { status: 'DENIED' };
+  }
+
   return summary;
 };
